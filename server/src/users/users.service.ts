@@ -71,19 +71,19 @@ export class UsersService {
     return this.toResponse(user);
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto) {
+  async update(updateUserDto: UpdateUserDto) {
+    const { id: userId, password, ...profile } = updateUserDto;
     const user = await this.usersRepository.findOne({
-      where: { id },
+      where: { id: userId },
       relations: { role: true },
     });
 
     if (!user) {
-      throw new NotFoundException(`用户 ${id} 不存在`);
+      throw new NotFoundException(`用户 ${userId} 不存在`);
     }
 
-    await this.ensureUnique(updateUserDto.username, updateUserDto.email, id);
+    await this.ensureUnique(updateUserDto.username, updateUserDto.email, userId);
 
-    const { password, ...profile } = updateUserDto;
     Object.assign(user, profile);
 
     if (updateUserDto.roleId) {

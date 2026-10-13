@@ -137,7 +137,13 @@ export function setupMock(): void {
   });
 
   mock.onGet('/forum/posts').reply((config) => {
-    const { page = 1, pageSize = 10, keyword, status, category } = body<{
+    const {
+      page = 1,
+      pageSize = 10,
+      keyword,
+      status,
+      category,
+    } = body<{
       page?: number;
       pageSize?: number;
       keyword?: string;
@@ -174,7 +180,13 @@ export function setupMock(): void {
   });
 
   mock.onGet('/forum/dynamics').reply((config) => {
-    const { page = 1, pageSize = 10, keyword, topic, pinned } = body<{
+    const {
+      page = 1,
+      pageSize = 10,
+      keyword,
+      topic,
+      pinned,
+    } = body<{
       page?: number;
       pageSize?: number;
       keyword?: string;
@@ -186,7 +198,11 @@ export function setupMock(): void {
       if (topic && item.topic !== topic) {
         return false;
       }
-      if (pinned !== undefined && pinned !== '' && item.pinned !== (pinned === true || pinned === 'true')) {
+      if (
+        pinned !== undefined &&
+        pinned !== '' &&
+        item.pinned !== (pinned === true || pinned === 'true')
+      ) {
         return false;
       }
       return includesKeyword(`${item.content}${item.author.nickname}${item.id}`, keyword);
@@ -210,12 +226,18 @@ export function setupMock(): void {
     return ok(null);
   });
 
-  mock.onGet('/forum/media/preview').reply(() =>
-    ok(db.dynamics.flatMap((item) => item.media).slice(0, 24)),
-  );
+  mock
+    .onGet('/forum/media/preview')
+    .reply(() => ok(db.dynamics.flatMap((item) => item.media).slice(0, 24)));
 
   mock.onGet('/customers').reply((config) => {
-    const { page = 1, pageSize = 10, keyword, status, level } = body<{
+    const {
+      page = 1,
+      pageSize = 10,
+      keyword,
+      status,
+      level,
+    } = body<{
       page?: number;
       pageSize?: number;
       keyword?: string;
@@ -250,7 +272,13 @@ export function setupMock(): void {
   });
 
   mock.onGet('/ads').reply((config) => {
-    const { page = 1, pageSize = 10, keyword, placement, status } = body<{
+    const {
+      page = 1,
+      pageSize = 10,
+      keyword,
+      placement,
+      status,
+    } = body<{
       page?: number;
       pageSize?: number;
       keyword?: string;
@@ -285,6 +313,18 @@ export function setupMock(): void {
     return ok(created);
   });
 
+  mock.onPut('/ads/status').reply((config) => {
+    const { id, status } = body<{ id: string; status: AdCampaign['status'] }>(
+      JSON.parse(config.data ?? '{}'),
+    );
+    const target = db.ads.find((item) => item.id === id);
+    if (!target) {
+      return fail(404, '广告计划不存在');
+    }
+    target.status = status;
+    return ok(null);
+  });
+
   mock.onPut(/\/ads\/[^/]+$/).reply((config) => {
     const id = config.url?.split('/').pop();
     const target = db.ads.find((item) => item.id === id);
@@ -293,17 +333,6 @@ export function setupMock(): void {
     }
     Object.assign(target, body<AdCampaignPayload>(JSON.parse(config.data ?? '{}')));
     return ok(target);
-  });
-
-  mock.onPatch(/\/ads\/[^/]+\/status$/).reply((config) => {
-    const id = config.url?.split('/')[2];
-    const target = db.ads.find((item) => item.id === id);
-    if (!target) {
-      return fail(404, '广告计划不存在');
-    }
-    const { status } = body<{ status: AdCampaign['status'] }>(JSON.parse(config.data ?? '{}'));
-    target.status = status;
-    return ok(null);
   });
 
   mock.onDelete(/\/ads\/[^/]+$/).reply((config) => {
@@ -316,9 +345,9 @@ export function setupMock(): void {
     return ok(null);
   });
 
-  mock.onGet('/dashboard/overview').reply(() =>
-    ok(createDashboardOverview(db.posts, db.customers)),
-  );
+  mock
+    .onGet('/dashboard/overview')
+    .reply(() => ok(createDashboardOverview(db.posts, db.customers)));
 
   mock.onGet('/dashboard/activities').reply(() => ok(createActivities()));
 

@@ -51,14 +51,15 @@ export class RolesService {
     return this.toResponse(await this.getRoleOrThrow(roleId));
   }
 
-  async update(roleId: string, updateRoleDto: UpdateRoleDto) {
+  async update(updateRoleDto: UpdateRoleDto) {
+    const { id: roleId, ...changes } = updateRoleDto;
     const role = await this.getRoleOrThrow(roleId);
 
     if (updateRoleDto.roleName) {
       await this.ensureRoleNameUnique(updateRoleDto.roleName, roleId);
     }
 
-    Object.assign(role, updateRoleDto);
+    Object.assign(role, changes);
     return this.toResponse(await this.rolesRepository.save(role));
   }
 

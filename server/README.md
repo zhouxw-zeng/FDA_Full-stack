@@ -98,7 +98,7 @@ Authorization: Bearer <accessToken>
 | POST | `/api/users` | 创建用户 |
 | GET | `/api/users?page=1&pageSize=10&keyword=alice` | 分页查询用户 |
 | GET | `/api/users/:id` | 查询用户详情 |
-| PATCH | `/api/users/:id` | 更新用户 |
+| PUT | `/api/users` | 更新用户，ID 从 Body 传入 |
 | DELETE | `/api/users/:id` | 删除用户 |
 
 创建用户示例：
@@ -119,6 +119,16 @@ Authorization: Bearer <accessToken>
 
 密码使用 bcrypt 哈希后写入 `password_hash`，接口响应不会返回密码或密码哈希。
 
+更新用户请求示例：
+
+```json
+{
+  "id": "2",
+  "nickname": "新昵称",
+  "status": 1
+}
+```
+
 ## 5. 角色管理接口
 
 所有接口都需要 Bearer accessToken。
@@ -128,7 +138,7 @@ Authorization: Bearer <accessToken>
 | POST | `/api/roles` | 创建角色 |
 | GET | `/api/roles?page=1&pageSize=10&keyword=运营` | 分页查询角色 |
 | GET | `/api/roles/:id` | 查询角色详情 |
-| PATCH | `/api/roles/:id` | 更新角色 |
+| PUT | `/api/roles` | 更新角色，ID 从 Body 传入 |
 | DELETE | `/api/roles/:id` | 删除角色 |
 
 角色页面权限通过 `admin_routes.route_id` 数值 ID 数组保存，例如：
@@ -143,6 +153,43 @@ Authorization: Bearer <accessToken>
 
 角色已分配给用户时不能删除，接口会返回 HTTP `409`。
 
-## 6. Nginx
+更新角色请求示例：
+
+```json
+{
+  "id": "3",
+  "roleRemark": "更新后的角色备注",
+  "routeIdGroup": [1, 3, 13]
+}
+```
+
+## 6. 路由管理接口
+
+所有接口都需要 Bearer accessToken。
+
+| 方法 | 地址 | 说明 |
+| --- | --- | --- |
+| POST | `/api/routes` | 创建路由 |
+| GET | `/api/routes/tree` | 查询树形路由 |
+| GET | `/api/routes/:id` | 查询路由详情 |
+| PUT | `/api/routes` | 更新路由，ID 从 Body 传入 |
+| DELETE | `/api/routes/:id` | 删除路由 |
+
+更新路由请求示例：
+
+```json
+{
+  "id": 3,
+  "routeName": "论坛信息审批",
+  "icon": "DocumentChecked",
+  "routePath": "/forum/approval",
+  "componentPath": "@/views/forum/approval/index.vue",
+  "pid": 2,
+  "status": 0,
+  "routeType": 1
+}
+```
+
+## 7. Nginx
 
 Windows 版 Nginx 示例见 `deploy/nginx.conf.example`。开发阶段可以直接使用 NestJS 和 Vite 的开发服务器，不需要先配置 Nginx。

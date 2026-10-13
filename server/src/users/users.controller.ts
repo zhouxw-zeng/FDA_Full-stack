@@ -5,8 +5,8 @@ import {
   Get,
   Param,
   ParseIntPipe,
-  Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import {
@@ -69,16 +69,15 @@ export class UsersController {
     return this.usersService.findOne(String(id));
   }
 
-  @Patch(':id')
-  @ApiOperation({ summary: '更新用户' })
-  @ApiParam({ name: 'id', example: 1 })
+  @Put()
+  @ApiOperation({ summary: '更新用户，ID 从 Body 传入' })
   @ApiOkResponse(
     apiDataResponse(UserResponseDto, {
       description: '更新成功',
     }),
   )
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(String(id), updateUserDto);
+  update(@Body() updateUserDto: UpdateUserDto) {
+    return this.usersService.update(updateUserDto);
   }
 
   @Delete(':id')

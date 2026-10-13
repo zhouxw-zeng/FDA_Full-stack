@@ -82,9 +82,6 @@ export const http = {
     request<T>({ ...config, url, method: 'POST', data }),
   put: <T>(url: string, data?: unknown, config?: RequestConfig) =>
     request<T>({ ...config, url, method: 'PUT', data }),
-  patch: <T>(url: string, data?: unknown, config?: RequestConfig) =>
-    request<T>({ ...config, url, method: 'PATCH', data }),
   delete: <T>(url: string, config?: RequestConfig) =>
     request<T>({ ...config, url, method: 'DELETE' }),
 };
-

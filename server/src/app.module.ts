@@ -9,6 +9,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { DatabaseModule } from './database/database.module';
 import { RolesModule } from './roles/roles.module';
+import { RoutesModule } from './routes/routes.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -20,6 +21,7 @@ import { UsersModule } from './users/users.module';
     DatabaseModule,
     AuthModule,
     RolesModule,
+    RoutesModule,
     UsersModule,
   ],
   controllers: [AppController],

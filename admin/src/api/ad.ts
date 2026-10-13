@@ -15,10 +15,9 @@ export function updateAd(id: string, payload: AdCampaignPayload): Promise<AdCamp
 }
 
 export function updateAdStatus(id: string, status: AdStatus): Promise<void> {
-  return http.patch<void>(`/ads/${id}/status`, { status });
+  return http.put<void>('/ads/status', { id, status });
 }
 
 export function deleteAd(id: string): Promise<void> {
   return http.delete<void>(`/ads/${id}`);
 }
-

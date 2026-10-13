@@ -5,8 +5,8 @@ import {
   Get,
   Param,
   ParseIntPipe,
-  Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import {
@@ -61,12 +61,11 @@ export class RolesController {
     return this.rolesService.findOne(String(id));
   }
 
-  @Patch(':id')
-  @ApiOperation({ summary: '更新角色' })
-  @ApiParam({ name: 'id', example: 1 })
+  @Put()
+  @ApiOperation({ summary: '更新角色，ID 从 Body 传入' })
   @ApiOkResponse(apiDataResponse(RoleResponseDto, { description: '更新成功' }))
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateRoleDto: UpdateRoleDto) {
-    return this.rolesService.update(String(id), updateRoleDto);
+  update(@Body() updateRoleDto: UpdateRoleDto) {
+    return this.rolesService.update(updateRoleDto);
   }
 
   @Delete(':id')
