@@ -1,17 +1,27 @@
-const TOKEN_KEY = 'album-forum:token';
+const ACCESS_TOKEN_KEY = 'album-forum:access-token';
+const REFRESH_TOKEN_KEY = 'album-forum:refresh-token';
 const PROFILE_KEY = 'album-forum:profile';
 const PREFERENCES_KEY = 'album-forum:preferences';
 
-export function getToken(): string {
-  return localStorage.getItem(TOKEN_KEY) ?? '';
+export function getAccessToken(): string {
+  return localStorage.getItem(ACCESS_TOKEN_KEY) ?? '';
 }
 
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+export function setAccessToken(token: string): void {
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
 }
 
-export function removeToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
+export function getRefreshToken(): string {
+  return localStorage.getItem(REFRESH_TOKEN_KEY) ?? '';
+}
+
+export function setRefreshToken(token: string): void {
+  localStorage.setItem(REFRESH_TOKEN_KEY, token);
+}
+
+export function clearTokens(): void {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
 export function readJson<T>(key: string, fallback: T): T {

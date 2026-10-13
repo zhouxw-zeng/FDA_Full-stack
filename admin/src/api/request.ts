@@ -1,12 +1,22 @@
 import axios, { type AxiosError, type AxiosRequestConfig } from 'axios';
 import { ElMessage } from 'element-plus';
 
-import type { ApiResponse } from '@/types';
-import { getToken } from '@/utils/storage';
+import type { ApiResponse, LoginResult } from '@/types';
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+} from '@/utils/storage';
 
 export interface RequestConfig extends AxiosRequestConfig {
   /** 关闭全局错误提示，交由调用方自行处理 */
   silent?: boolean;
+  /** 跳过 401 自动续期（登录、刷新令牌本身使用） */
+  skipAuthRefresh?: boolean;
+  /** 内部标记：该请求已经用新 token 重放过一次 */
+  retried?: boolean;
 }
 
 export const UNAUTHORIZED_EVENT = 'app:unauthorized';
@@ -20,12 +30,48 @@ export const httpClient = axios.create({
 });
 
 httpClient.interceptors.request.use((config) => {
-  const token = getToken();
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+let refreshing: Promise<string> | null = null;
+
+/**
+ * 用 refreshToken 换新的令牌对。
+ * 后端在刷新时会立刻作废旧 refreshToken，因此并发的 401 必须共用同一个刷新请求。
+ */
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    throw new Error('本地没有 refreshToken');
+  }
+
+  const response = await httpClient.post<ApiResponse<LoginResult>>(
+    '/auth/refresh',
+    { refreshToken },
+    { skipAuthRefresh: true, silent: true } as RequestConfig,
+  );
+
+  const body = response.data;
+  const data = body.data;
+  if (body.code !== 0 || !data?.accessToken) {
+    throw new Error(body.message || '刷新登录状态失败');
+  }
+
+  setAccessToken(data.accessToken);
+  setRefreshToken(data.refreshToken);
+  return data.accessToken;
+}
+
+function ensureRefresh(): Promise<string> {
+  refreshing ??= refreshAccessToken().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
 
 function resolveErrorMessage(error: AxiosError<ApiResponse<unknown>>): string {
   if (error.code === 'ECONNABORTED') {
@@ -50,12 +96,28 @@ function resolveErrorMessage(error: AxiosError<ApiResponse<unknown>>): string {
 
 httpClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<ApiResponse<unknown>>) => {
+  async (error: AxiosError<ApiResponse<unknown>>) => {
     const status = error.response?.status;
+    const config = error.config as RequestConfig | undefined;
+
+    if (status === 401 && config && !config.skipAuthRefresh && !config.retried) {
+      try {
+        const accessToken = await ensureRefresh();
+        config.retried = true;
+        config.headers = { ...(config.headers ?? {}), Authorization: `Bearer ${accessToken}` };
+        return await httpClient.request(config);
+      } catch {
+        clearTokens();
+        window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+        return Promise.reject(error);
+      }
+    }
+
     if (status === 401) {
+      clearTokens();
       window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
     }
-    const config = error.config as RequestConfig | undefined;
+
     if (!config?.silent) {
       ElMessage.error(resolveErrorMessage(error));
     }

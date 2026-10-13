@@ -8,8 +8,8 @@ declare const __APP_TITLE__: string;
 declare const __API_BASE_URL__: string;
 /** 前端部署的基础路径 */
 declare const __BASE_PATH__: string;
-/** 是否启用本地 mock 数据 */
-declare const __USE_MOCK__: boolean;
+/** 是否为未实现的业务模块启用本地 mock 数据 */
+declare const __USE_BUSINESS_MOCK__: boolean;
 /** 是否为开发构建 */
 declare const __DEV__: boolean;
 

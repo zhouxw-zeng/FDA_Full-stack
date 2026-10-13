@@ -1,11 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { AdsModule } from './ads/ads.module';
 import { AuthModule } from './auth/auth.module';
 import { TokenAuthGuard } from './auth/guards/token-auth.guard';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { CustomersModule } from './customers/customers.module';
+import { ForumModule } from './forum/forum.module';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { DatabaseModule } from './database/database.module';
 import { RolesModule } from './roles/roles.module';
@@ -19,7 +22,10 @@ import { UsersModule } from './users/users.module';
       envFilePath: [`.env.${process.env.NODE_ENV ?? 'development'}`, '.env'],
     }),
     DatabaseModule,
+    AdsModule,
     AuthModule,
+    CustomersModule,
+    ForumModule,
     RolesModule,
     RoutesModule,
     UsersModule,

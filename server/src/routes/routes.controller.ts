@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -11,6 +21,8 @@ import {
 import { apiDataResponse } from '../common/swagger/api-data-response';
 import { CreateRouteDto } from './dto/create-route.dto';
 import { DeleteRouteResponseDto } from './dto/delete-route-response.dto';
+import { QueryRouteDto } from './dto/query-route.dto';
+import { RoutePageResponseDto } from './dto/route-page-response.dto';
 import { RouteResponseDto } from './dto/route-response.dto';
 import { RouteTreeResponseDto } from './dto/route-tree-response.dto';
 import { UpdateRouteDto } from './dto/update-route.dto';
@@ -33,6 +45,13 @@ export class RoutesController {
   )
   create(@Body() createRouteDto: CreateRouteDto) {
     return this.routesService.create(createRouteDto);
+  }
+
+  @Get()
+  @ApiOperation({ summary: '分页查询扁平路由列表' })
+  @ApiOkResponse(apiDataResponse(RoutePageResponseDto, { description: '查询成功' }))
+  findAll(@Query() queryRouteDto: QueryRouteDto) {
+    return this.routesService.findAll(queryRouteDto);
   }
 
   @Get('tree')

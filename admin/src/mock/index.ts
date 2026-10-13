@@ -8,15 +8,10 @@ import type {
   Customer,
   ForumDynamic,
   ForumPost,
-  LoginParams,
-  LoginResult,
   PageResult,
-  UpdateProfilePayload,
-  UserProfile,
 } from '@/types';
 
 import {
-  ADMIN_ACCOUNTS,
   createActivities,
   createAds,
   createBehaviorAnalytics,
@@ -26,34 +21,19 @@ import {
   createForumPosts,
 } from './data';
 
-const TOKEN_PREFIX = 'mock-token';
-
-const db = {
-  posts: createForumPosts(),
-  dynamics: createForumDynamics(),
-  customers: createCustomers(),
-  ads: createAds(),
-};
-
+/**
+ * 后端目前只实现了 auth / roles / routes / users 四个模块，
+ * 论坛、客户、广告、分析这些页面还没有真实接口，因此在开发环境用本地数据兜底。
+ *
+ * 注意 onNoMatch: 'passthrough' —— 没有命中的请求会原样发给真实后端，
+ * 所以登录、刷新令牌、路由树这些请求不会被 mock 拦截。
+ */
 function ok<T>(data: T): [number, ApiResponse<T>] {
   return [200, { code: 0, message: 'ok', data }];
 }
 
 function fail(status: number, message: string): [number, ApiResponse<null>] {
   return [status, { code: status, message, data: null }];
-}
-
-function createToken(username: string): string {
-  return `${TOKEN_PREFIX}.${username}.${Date.now()}`;
-}
-
-function readUsername(headers?: Record<string, unknown>): string | null {
-  const raw = headers?.Authorization ?? headers?.authorization;
-  if (typeof raw !== 'string') {
-    return null;
-  }
-  const [, username] = raw.replace('Bearer ', '').split('.');
-  return username && username in ADMIN_ACCOUNTS ? username : null;
 }
 
 function paginate<T>(list: T[], page = 1, pageSize = 10): PageResult<T> {
@@ -73,67 +53,21 @@ function includesKeyword(source: string, keyword?: string): boolean {
   return source.toLowerCase().includes(keyword.trim().toLowerCase());
 }
 
-/** 关闭响应体里的类型断言噪音，统一在这里做窄化 */
 function body<T>(data: unknown): T {
   return data as T;
 }
 
-export function setupMock(): void {
-  const mock = new MockAdapter(httpClient, { delayResponse: 260 });
+export function setupBusinessMock(): void {
+  const db = {
+    posts: createForumPosts(),
+    dynamics: createForumDynamics(),
+    customers: createCustomers(),
+    ads: createAds(),
+  };
 
-  mock.onPost('/auth/login').reply((config) => {
-    const { username, password } = body<LoginParams>(JSON.parse(config.data ?? '{}'));
-    const account = ADMIN_ACCOUNTS[username];
-    if (!account || account.password !== password) {
-      return fail(400, '账号或密码不正确');
-    }
-    account.profile.lastLoginAt = new Date().toISOString();
-    const result: LoginResult = {
-      token: createToken(username),
-      expiresIn: 7 * 24 * 3600,
-      profile: account.profile,
-    };
-    return ok(result);
-  });
-
-  mock.onPost('/auth/logout').reply(() => ok(null));
-
-  mock.onGet('/auth/profile').reply((config) => {
-    const username = readUsername(config.headers as Record<string, unknown>);
-    if (!username) {
-      return fail(401, '登录状态已失效，请重新登录');
-    }
-    return ok(ADMIN_ACCOUNTS[username]?.profile);
-  });
-
-  mock.onPut('/auth/profile').reply((config) => {
-    const username = readUsername(config.headers as Record<string, unknown>);
-    if (!username) {
-      return fail(401, '登录状态已失效，请重新登录');
-    }
-    const account = ADMIN_ACCOUNTS[username];
-    if (!account) {
-      return fail(401, '登录状态已失效，请重新登录');
-    }
-    const payload = body<UpdateProfilePayload>(JSON.parse(config.data ?? '{}'));
-    account.profile = { ...account.profile, ...payload };
-    return ok<UserProfile>(account.profile);
-  });
-
-  mock.onPut('/auth/password').reply((config) => {
-    const username = readUsername(config.headers as Record<string, unknown>);
-    const account = username ? ADMIN_ACCOUNTS[username] : undefined;
-    if (!account) {
-      return fail(401, '登录状态已失效，请重新登录');
-    }
-    const payload = body<{ oldPassword: string; newPassword: string }>(
-      JSON.parse(config.data ?? '{}'),
-    );
-    if (payload.oldPassword !== account.password) {
-      return fail(400, '原密码不正确');
-    }
-    account.password = payload.newPassword;
-    return ok(null);
+  const mock = new MockAdapter(httpClient, {
+    delayResponse: 260,
+    onNoMatch: 'passthrough',
   });
 
   mock.onGet('/forum/posts').reply((config) => {
@@ -325,13 +259,15 @@ export function setupMock(): void {
     return ok(null);
   });
 
-  mock.onPut(/\/ads\/[^/]+$/).reply((config) => {
-    const id = config.url?.split('/').pop();
+  mock.onPut('/ads').reply((config) => {
+    const { id, ...payload } = body<AdCampaignPayload & { id: string }>(
+      JSON.parse(config.data ?? '{}'),
+    );
     const target = db.ads.find((item) => item.id === id);
     if (!target) {
       return fail(404, '广告计划不存在');
     }
-    Object.assign(target, body<AdCampaignPayload>(JSON.parse(config.data ?? '{}')));
+    Object.assign(target, payload);
     return ok(target);
   });
 
@@ -354,10 +290,5 @@ export function setupMock(): void {
   mock.onGet('/analytics/behavior').reply((config) => {
     const range = Number((config.params as { range?: number } | undefined)?.range ?? 14);
     return ok(createBehaviorAnalytics(range));
-  });
-
-  mock.onAny().reply((config) => {
-    console.warn(`[mock] 未匹配到接口: ${config.method?.toUpperCase()} ${config.url}`);
-    return fail(404, `Mock 未实现该接口: ${config.url}`);
   });
 }

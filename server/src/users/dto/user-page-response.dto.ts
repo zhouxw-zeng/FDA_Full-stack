@@ -11,6 +11,9 @@ export class UserPageResponseDto {
   @ApiProperty({ example: 1 })
   page: number;
 
-  @ApiProperty({ example: 10 })
+  @ApiProperty({ example: 15 })
+  size: number;
+
+  @ApiProperty({ example: 15, deprecated: true })
   pageSize: number;
 }

@@ -11,7 +11,7 @@ export function createAd(payload: AdCampaignPayload): Promise<AdCampaign> {
 }
 
 export function updateAd(id: string, payload: AdCampaignPayload): Promise<AdCampaign> {
-  return http.put<AdCampaign>(`/ads/${id}`, payload);
+  return http.put<AdCampaign>('/ads', { id, ...payload });
 }
 
 export function updateAdStatus(id: string, status: AdStatus): Promise<void> {

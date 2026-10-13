@@ -11,15 +11,17 @@ import App from './App.vue';
 import { UNAUTHORIZED_EVENT } from './api/request';
 import router from './router';
 import { setupRouterGuard } from './router/guards';
+import { resetDynamicRoutes } from './router/register';
 import { useAppStore } from './stores/app';
 import { usePermissionStore } from './stores/permission';
 import { useUserStore } from './stores/user';
 
 async function bootstrap(): Promise<void> {
-  // 构建期常量：USE_MOCK=false 时该分支在代码分割前就被移除，mock 依赖不会进包
-  if (__USE_MOCK__) {
-    const { setupMock } = await import('./mock');
-    setupMock();
+  // 论坛 / 客户 / 广告 / 分析等模块后端尚未实现，开发环境用本地数据兜底；
+  // 登录、刷新令牌、路由树始终走真实接口（mock 未命中的请求会透传）。
+  if (__USE_BUSINESS_MOCK__) {
+    const { setupBusinessMock } = await import('./mock');
+    setupBusinessMock();
   }
 
   const app = createApp(App);
@@ -35,6 +37,7 @@ async function bootstrap(): Promise<void> {
   window.addEventListener(UNAUTHORIZED_EVENT, () => {
     useUserStore().clearAuth();
     usePermissionStore().reset();
+    resetDynamicRoutes(router);
     void router.replace({
       name: 'Login',
       query: { redirect: router.currentRoute.value.fullPath },

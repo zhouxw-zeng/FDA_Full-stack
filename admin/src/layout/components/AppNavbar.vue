@@ -13,10 +13,9 @@ import {
 } from '@element-plus/icons-vue';
 import { useFullscreen } from '@vueuse/core';
 
-import { ROLE_LABELS } from '@/constants';
 import { useConfirm } from '@/composables/useConfirm';
+import { useLogout } from '@/composables/useLogout';
 import { useAppStore } from '@/stores/app';
-import { usePermissionStore } from '@/stores/permission';
 import { useUserStore } from '@/stores/user';
 
 import AppBreadcrumb from './AppBreadcrumb.vue';
@@ -34,13 +33,11 @@ const emit = defineEmits<{
 const router = useRouter();
 const appStore = useAppStore();
 const userStore = useUserStore();
-const permissionStore = usePermissionStore();
 const { confirm } = useConfirm();
+const { logout } = useLogout();
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
 
-const roleText = computed(() =>
-  userStore.roles.map((role) => ROLE_LABELS[role]).join(' / ') || '未分配角色',
-);
+const roleText = computed(() => userStore.roleName || '未分配角色');
 
 async function handleLogout(): Promise<void> {
   const accepted = await confirm('退出后需要重新登录，确定继续吗？', {
@@ -50,9 +47,7 @@ async function handleLogout(): Promise<void> {
   if (!accepted) {
     return;
   }
-  await userStore.logout();
-  permissionStore.reset();
-  await router.replace({ name: 'Login' });
+  await logout();
 }
 
 function handleCommand(command: string): void {

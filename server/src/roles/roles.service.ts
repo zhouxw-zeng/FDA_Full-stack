@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
+import { createPaginationResult, resolvePagination } from '../common/pagination/pagination';
 import { AdminUser } from '../users/entities/admin-user.entity';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { QueryRoleDto } from './dto/query-role.dto';
@@ -24,7 +25,8 @@ export class RolesService {
   }
 
   async findAll(queryRoleDto: QueryRoleDto) {
-    const { page, pageSize, keyword } = queryRoleDto;
+    const { keyword } = queryRoleDto;
+    const { page, size, skip } = resolvePagination(queryRoleDto);
     const query = this.rolesRepository.createQueryBuilder('role');
 
     if (keyword) {
@@ -35,16 +37,16 @@ export class RolesService {
 
     const [list, total] = await query
       .orderBy('role.roleId', 'ASC')
-      .skip((page - 1) * pageSize)
-      .take(pageSize)
+      .skip(skip)
+      .take(size)
       .getManyAndCount();
 
-    return {
-      list: list.map((role) => this.toResponse(role)),
+    return createPaginationResult(
+      list.map((role) => this.toResponse(role)),
       total,
       page,
-      pageSize,
-    };
+      size,
+    );
   }
 
   async findOne(roleId: string) {

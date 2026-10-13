@@ -31,7 +31,7 @@ export default tseslint.config(
         __APP_TITLE__: 'readonly',
         __API_BASE_URL__: 'readonly',
         __BASE_PATH__: 'readonly',
-        __USE_MOCK__: 'readonly',
+        __USE_BUSINESS_MOCK__: 'readonly',
         __DEV__: 'readonly',
       },
       parserOptions: {

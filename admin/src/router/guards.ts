@@ -5,7 +5,7 @@ import type { Router } from 'vue-router';
 import { usePermissionStore } from '@/stores/permission';
 import { useUserStore } from '@/stores/user';
 
-import { knownRoutePaths } from './routes';
+import { registerDynamicRoutes } from './register';
 
 NProgress.configure({ showSpinner: false, trickleSpeed: 120, minimum: 0.15 });
 
@@ -15,8 +15,10 @@ export function setupRouterGuard(router: Router): void {
 
     const userStore = useUserStore();
     const permissionStore = usePermissionStore();
+    const homePath = () => permissionStore.homePath || '/403';
 
-    if (!userStore.token) {
+    // 1. 未登录：公开页放行，其余跳登录并记录回跳地址
+    if (!userStore.accessToken) {
       if (to.meta.public) {
         return true;
       }
@@ -26,11 +28,7 @@ export function setupRouterGuard(router: Router): void {
       };
     }
 
-    // 已登录状态下去登录页，直接回到工作台
-    if (to.meta.public) {
-      return { path: '/dashboard', replace: true };
-    }
-
+    // 2. 有 token 但没有用户信息（例如刷新页面后只恢复了 token）
     if (!userStore.profile) {
       try {
         await userStore.loadProfile();
@@ -41,14 +39,29 @@ export function setupRouterGuard(router: Router): void {
       }
     }
 
+    // 3. 首次进入：按 routeIdGroup 拉取并挂载动态路由
     if (!permissionStore.loaded) {
-      const accessibleRoutes = permissionStore.generateRoutes(userStore.roles);
-      accessibleRoutes.forEach((route) => router.addRoute(route));
-      return { path: to.fullPath, replace: true };
+      try {
+        await registerDynamicRoutes(router, userStore.routeIdGroup);
+      } catch {
+        userStore.clearAuth();
+        permissionStore.reset();
+        return { name: 'Login', query: { redirect: to.fullPath } };
+      }
+      // 路由表刚刚变化，需要用新的匹配结果重新导航一次
+      return {
+        path: to.meta.public || to.path === '/' ? homePath() : to.fullPath,
+        replace: true,
+      };
     }
 
-    // 路由存在但被角色过滤掉时，明确给出 403，而不是落到 404
-    if (to.name === 'NotFound' && knownRoutePaths.has(to.path)) {
+    // 4. 已登录访问登录页或根路径 → 落到该角色的首页
+    if (to.meta.public || to.path === '/') {
+      return { path: homePath(), replace: true };
+    }
+
+    // 5. 地址在路由表里存在、但当前角色没被授权 → 403（真正不存在的路径交给 404）
+    if (to.name === 'NotFound' && permissionStore.knownPaths.has(to.path)) {
       return { path: '/403', replace: true };
     }
 

@@ -115,6 +115,7 @@ export interface AdQuery extends PageQuery {
 export interface AdCampaignPayload {
   name: string;
   advertiser: string;
+  partnerTypeId?: number;
   placement: AdPlacement;
   budget: number;
   startAt: string;

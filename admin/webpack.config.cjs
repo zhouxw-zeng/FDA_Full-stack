@@ -39,10 +39,17 @@ module.exports = async (_cliEnv, argv) => {
   const appEnv = loadEnv(mode);
   const backendPort = loadBackendPort();
   const devPort = Number(process.env.DEV_PORT || appEnv.DEV_PORT) || 5173;
+  // 后端已在别的终端 / 容器里运行时，用 BACKEND_AUTOSTART=false 跳过自动拉起与端口清理
+  const autoStartBackend =
+    !isProd &&
+    isServe &&
+    (process.env.BACKEND_AUTOSTART ?? appEnv.BACKEND_AUTOSTART ?? 'true') !== 'false';
 
   // Webpack Dev Server 绑定端口前先清理上次遗留的前后端进程。
-  if (!isProd && isServe) {
+  if (autoStartBackend) {
     await ensurePortAvailable(backendPort, '后端');
+  }
+  if (!isProd && isServe) {
     await ensurePortAvailable(devPort, '前端');
   }
 
@@ -127,15 +134,15 @@ module.exports = async (_cliEnv, argv) => {
         /*
          * 构建期常量。这里刻意拆成独立的字面量而不是一个对象：
          * webpack 只能在代码分割前静态判定简单常量，
-         * `__USE_MOCK__ ? import(...) : ...` 这样写生产构建才会真正丢掉 mock 分块。
+         * `__USE_BUSINESS_MOCK__ ? import(...) : ...` 这样写生产构建才会真正丢掉 mock 分块。
          */
         __APP_TITLE__: JSON.stringify(appEnv.APP_TITLE || '相册视频论坛 · 管理后台'),
         __API_BASE_URL__: JSON.stringify(appEnv.API_BASE_URL || '/api'),
         __BASE_PATH__: JSON.stringify(appEnv.BASE_PATH || '/'),
-        __USE_MOCK__: JSON.stringify(appEnv.USE_MOCK !== 'false'),
+        __USE_BUSINESS_MOCK__: JSON.stringify(appEnv.USE_BUSINESS_MOCK !== 'false'),
         __DEV__: JSON.stringify(!isProd),
       }),
-      ...(!isProd && isServe
+      ...(autoStartBackend
         ? [
             new BackendDevServerPlugin({
               port: backendPort,
@@ -193,6 +200,15 @@ module.exports = async (_cliEnv, argv) => {
       open: false,
       // history 路由必须回退到 index.html，否则刷新深层路由会 404
       historyApiFallback: true,
+      // 前端只请求同源 /api，由 dev server 转发到 NestJS，避免跨域问题
+      proxy: [
+        {
+          context: ['/api'],
+          target:
+            process.env.PROXY_TARGET || appEnv.PROXY_TARGET || `http://localhost:${backendPort}`,
+          changeOrigin: true,
+        },
+      ],
       client: {
         overlay: {
           errors: true,

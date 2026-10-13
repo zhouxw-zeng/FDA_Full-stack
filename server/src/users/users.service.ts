@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { FindOptionsWhere, Not, Repository } from 'typeorm';
+import { createPaginationResult, resolvePagination } from '../common/pagination/pagination';
 import { AdminRole } from '../roles/entities/admin-role.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
@@ -32,7 +33,8 @@ export class UsersService {
   }
 
   async findAll(queryUserDto: QueryUserDto) {
-    const { page, pageSize, keyword } = queryUserDto;
+    const { keyword } = queryUserDto;
+    const { page, size, skip } = resolvePagination(queryUserDto);
     const query = this.usersRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.role', 'role');
@@ -46,16 +48,16 @@ export class UsersService {
 
     const [list, total] = await query
       .orderBy('user.id', 'DESC')
-      .skip((page - 1) * pageSize)
-      .take(pageSize)
+      .skip(skip)
+      .take(size)
       .getManyAndCount();
 
-    return {
-      list: list.map((user) => this.toResponse(user)),
+    return createPaginationResult(
+      list.map((user) => this.toResponse(user)),
       total,
       page,
-      pageSize,
-    };
+      size,
+    );
   }
 
   async findOne(id: string) {

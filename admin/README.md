@@ -10,10 +10,10 @@ Vue3 + TypeScript + Pinia 实现的社区运营后台，覆盖登录鉴权、路
 | 框架 | Vue 3（全部使用 `<script setup>` + Composition API） |
 | 语言 | TypeScript（`strict`，模板同样参与类型检查） |
 | 状态管理 | Pinia（user / permission / app 三个 store） |
-| 路由 | Vue Router 4，静态路由 + 按角色动态挂载 |
+| 路由 | Vue Router，静态路由 + 后端下发路由树动态挂载 |
 | UI | Element Plus（基础控件）+ 自研通用组件 |
 | 样式 | SCSS + CSS 变量主题令牌，支持浅色 / 深色 |
-| 请求 | axios 封装 + axios-mock-adapter 本地数据 |
+| 请求 | axios 封装（Bearer 注入 + refreshToken 自动续期） |
 | 图表 | ECharts（按需注册）+ vue-echarts |
 | 规范 | ESLint 9 flat config + Prettier |
 
@@ -29,21 +29,24 @@ pnpm dev
 本工程也可以从仓库根目录启动：`npm run dev:admin`（等价于 `pnpm -C admin dev`）。
 构建配置集中在 `webpack.config.cjs`，端口与接口前缀在 `.env` 中维护。
 
+开发模式下 dev server 会自动拉起 `../server` 的 NestJS（`BackendDevServerPlugin`），
+并清理上次残留的前后端进程。若后端已在别处运行，用 `BACKEND_AUTOSTART=false` 跳过。
+后端依赖 MySQL，连接配置见 `server/.env`。
+
 ### 演示账号
 
 | 账号 | 密码 | 角色 | 可见菜单 |
 | --- | --- | --- | --- |
-| `admin` | `123456` | 超级管理员 | 全部 |
-| `forum` | `123456` | 论坛运营 | 工作台、论坛管理、用户管理、动态预览 |
-| `ads` | `123456` | 广告运营 | 工作台、商业化、数据分析、动态预览 |
+| `admin` | `123456` | 超级管理员 | 全部页面（routeIdGroup 1–13） |
+| `user` | `123456` | 普通用户 | 仅个人信息（routeIdGroup 13） |
 
-登录页提供一键填充按钮，可直接切换角色体验权限差异。
+登录页提供一键填充按钮，用这两个账号可以直观看出菜单与 403 的差异。
 
 ## 功能范围
 
-- 登录 / 退出：token 持久化、过期自动跳转、登录页角色快捷填充
-- 路由权限：`meta.roles` 声明可见角色，登录后按角色过滤并动态挂载；越权访问落到 403，路径不存在落到 404
-- 个人信息：资料编辑、密码修改，均带表单校验
+- 登录 / 退出：真实调用后端接口，`accessToken` + `refreshToken` 持久化，accessToken 过期静默续期
+- 路由权限：后端下发路由树 + 角色 `routeIdGroup` 过滤后动态生成；越权访问落到 403，路径不存在落到 404
+- 个人信息：资料编辑、密码修改（走 `PUT /users`），均带表单校验
 - 论坛信息审批：条件查询、批量通过、单条通过 / 驳回、详情抽屉、素材预览
 - C 端用户审批：按状态与等级筛选、通过 / 驳回 / 封禁、批量通过
 - 广告推广管理：投放计划增删改、预算消耗进度、启停投放状态
@@ -60,8 +63,8 @@ src
 ├── composables  # useTable / useConfirm / useChartTokens
 ├── constants    # 枚举文案与下拉选项
 ├── layout       # 侧边栏、顶栏、面包屑、内容区
-├── mock         # 本地 mock 数据与路由拦截
-├── router       # 路由表、守卫、权限过滤
+├── mock         # 仅兜底后端尚未实现的业务接口
+├── router       # 固定路由、守卫、动态路由构建、组件注册表
 ├── stores       # Pinia：user / permission / app
 ├── styles       # 设计令牌、重置样式、Element Plus 收口
 ├── types        # 领域类型与 router meta 扩展
@@ -84,11 +87,39 @@ src
 | `AuditDialog` | 通过 / 驳回弹窗，驳回原因必填并提供常用原因 |
 | `StatusTag` / `UserAvatar` / `EmptyState` / `PageHeader` | 状态、头像、空态、页头 |
 
-## 对接真实后端
+## 登录与动态路由
 
-1. 修改 `.env.development`：`USE_MOCK=false`
-2. 在 `.env` 中把 `API_BASE_URL` 指向后端地址（默认 `/api`，部署时可由网关或反向代理转发）
-3. `src/api/*` 已经按领域封装好请求方法，mock 关闭后即为真实接口调用
+一次完整登录的链路：
+
+1. `POST /api/auth/login` 返回 `accessToken`、`refreshToken`、有效期与用户信息（含 `roleId`、`roleName`、`routeIdGroup`）
+2. 两个 token 写入 `localStorage`；请求拦截器为每个请求注入 `Authorization: Bearer <accessToken>`
+3. accessToken 过期（401）时，响应拦截器用 refreshToken 静默换新令牌并重放原请求；并发的 401 共用同一个刷新请求，只有刷新失败才清空登录态并跳回登录页
+4. `GET /api/routes/tree` 拉取全量路由树，按用户的 `routeIdGroup` 过滤后生成前端路由与侧边栏菜单
+5. 跳转到拦截前的地址，或该角色的第一个可访问菜单
+
+| 位置 | 作用 |
+| --- | --- |
+| `src/api/request.ts` | Bearer 注入、401 自动续期与重放、统一错误提示 |
+| `src/stores/user.ts` | token 与用户信息持久化、登录 / 注销 / 资料与密码更新 |
+| `src/stores/permission.ts` | 拉取路由树并按 routeIdGroup 生成路由 |
+| `src/router/dynamic.ts` | 路由树 → vue-router 路由与菜单（目录节点挂布局，菜单节点挂页面） |
+| `src/router/view-registry.ts` | 后端 `componentPath` → 页面组件，保持路由级懒加载 |
+| `src/constants/icons.ts` | 后端图标名 → Element Plus 图标组件 |
+
+动态路由统一以 `dyn:` 前缀命名，注销时按前缀移除，避免切换账号后残留上一个账号的权限。
+
+### 后端接口现状
+
+| 模块 | 状态 |
+| --- | --- |
+| `auth` | 已对接：登录、刷新、注销、当前用户信息 |
+| `routes` | 已对接：`/routes/tree` 驱动动态路由 |
+| `users` | 部分对接：个人资料与改密走 `PUT /users` |
+| `roles` | 后端已实现，前端暂无页面 |
+| 论坛 / 客户 / 广告 / 分析 | 后端未实现，开发环境由 `src/mock` 兜底 |
+
+业务模块的兜底数据由 `USE_BUSINESS_MOCK` 控制（开发默认开启、生产关闭）；
+设为 `false` 后这些页面会直接请求后端，在接口补齐前会返回 404。
 
 约定的响应结构：
 
@@ -100,7 +131,7 @@ interface ApiResponse<T> {
 }
 ```
 
-401 会触发全局登出并跳回登录页；业务错误码由 `request.ts` 统一提示，单个请求可用 `silent: true` 关闭提示。
+业务错误码由 `request.ts` 统一提示，单个请求可用 `silent: true` 关闭提示。
 
 ## 代码规范说明
 
@@ -120,4 +151,4 @@ pnpm verify       # typecheck + lint + build
 
 ## 关于媒体素材
 
-真实项目中媒体地址来自后端；当前 mock 只返回 `seed`，前端据此生成确定性抽象画面，保证列表、预览与详情展示的是同一张素材。接入真实数据后，把 `MediaThumb` 的渲染替换成 `<img>` / `<video>` 即可。
+论坛 / 客户 / 广告等业务数据目前仍由 `src/mock` 提供，素材只返回 `seed`，前端据此生成确定性抽象画面，保证列表、预览与详情展示的是同一张素材。后端补齐接口后，把 `MediaThumb` 的渲染换成 `<img>` / `<video>` 即可。

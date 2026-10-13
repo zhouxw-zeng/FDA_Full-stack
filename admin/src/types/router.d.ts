@@ -1,16 +1,14 @@
 import type { Component } from 'vue';
 import 'vue-router';
 
-import type { AdminRole } from './auth';
-
 declare module 'vue-router' {
   interface RouteMeta {
     /** 菜单与面包屑展示名 */
     title?: string;
     /** 菜单图标，直接挂载图标组件 */
     icon?: Component;
-    /** 可访问该路由的角色，缺省表示全部登录用户可见 */
-    roles?: AdminRole[];
+    /** 对应后端 admin_routes.route_id */
+    routeId?: number;
     /** 是否在侧边栏隐藏 */
     hidden?: boolean;
     /** 是否需要被 keep-alive 缓存 */
@@ -21,6 +19,8 @@ declare module 'vue-router' {
     activeMenu?: string;
     /** 免登录访问 */
     public?: boolean;
+    /** 是否为承载子路由的布局容器 */
+    layout?: boolean;
   }
 }
 

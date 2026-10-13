@@ -44,13 +44,14 @@ function findBrowser() {
   return found;
 }
 
-async function login(page, username) {
+async function login(page, username, homePath) {
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
   await page.getByPlaceholder('请输入账号').waitFor({ state: 'visible', timeout: 15000 });
   await page.getByPlaceholder('请输入账号').fill(username);
   await page.getByPlaceholder('请输入密码').fill('123456');
   await page.getByRole('button', { name: '登录' }).click();
-  await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+  // 登录后落点由后端返回的 routeIdGroup 决定，不同角色首页不同
+  await page.waitForURL(new RegExp(homePath.replace('/', '\\/')), { timeout: 20000 });
   await page.locator('.page-header__title').first().waitFor({ state: 'visible', timeout: 15000 });
 }
 
@@ -125,7 +126,7 @@ async function runChecks(browser) {
   console.warn('✓ 登录页渲染正常');
 
   // 2. 超级管理员逐页访问
-  await login(page, 'admin');
+  await login(page, 'admin', '/dashboard');
   for (const item of PAGES) {
     try {
       await page.goto(`${BASE_URL}${item.path}`, { waitUntil: 'domcontentloaded' });
@@ -152,8 +153,9 @@ async function runChecks(browser) {
   console.warn('✓ 深色主题渲染正常');
 
   // 4. 路由级权限：广告运营访问论坛审批应落到 403
+  // 普通用户只有 routeIdGroup=[13]，登录后应落在个人信息页
   await page.evaluate(() => window.localStorage.clear());
-  await login(page, 'ads');
+  await login(page, 'user', '/profile');
   await page.goto(`${BASE_URL}/forum/approval`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(800);
   const forbiddenVisible = await page
@@ -161,7 +163,7 @@ async function runChecks(browser) {
     .isVisible()
     .catch(() => false);
   if (!forbiddenVisible) {
-    problems.push('路由权限未生效：广告运营账号访问 /forum/approval 没有落到 403');
+    problems.push('路由权限未生效：普通用户访问 /forum/approval 没有落到 403');
   } else {
     console.warn('✓ 路由权限 403 生效');
     await page.screenshot({ path: path.join(OUT_DIR, '10-forbidden.png'), fullPage: true });

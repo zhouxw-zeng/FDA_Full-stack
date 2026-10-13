@@ -1,5 +1,4 @@
 import type {
-  AdminRole,
   AdPlacement,
   AdStatus,
   AuditStatus,
@@ -61,12 +60,6 @@ export const CUSTOMER_LEVEL_LABELS: Record<Customer['level'], string> = {
   newbie: '新用户',
   active: '活跃',
   veteran: '资深',
-};
-
-export const ROLE_LABELS: Record<AdminRole, string> = {
-  super_admin: '超级管理员',
-  forum_admin: '论坛运营',
-  ad_admin: '广告运营',
 };
 
 export const FORUM_CATEGORY_OPTIONS: SelectOption[] = [

@@ -6,8 +6,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Not, Repository } from 'typeorm';
+import { createPaginationResult, resolvePagination } from '../common/pagination/pagination';
 import { AdminRole } from '../roles/entities/admin-role.entity';
 import { CreateRouteDto } from './dto/create-route.dto';
+import { QueryRouteDto } from './dto/query-route.dto';
 import { RouteTreeResponseDto } from './dto/route-tree-response.dto';
 import { UpdateRouteDto } from './dto/update-route.dto';
 import { AdminRoute } from './entities/admin-route.entity';
@@ -66,6 +68,38 @@ export class RoutesService {
     }
 
     return roots;
+  }
+
+  async findAll(queryRouteDto: QueryRouteDto) {
+    const { keyword, status, routeType } = queryRouteDto;
+    const { page, size, skip } = resolvePagination(queryRouteDto);
+    const query = this.routesRepository.createQueryBuilder('route');
+
+    if (keyword) {
+      query.andWhere(
+        '(route.routeName LIKE :keyword OR route.routePath LIKE :keyword OR route.componentPath LIKE :keyword)',
+        { keyword: `%${keyword}%` },
+      );
+    }
+    if (status !== undefined) {
+      query.andWhere('route.status = :status', { status });
+    }
+    if (routeType !== undefined) {
+      query.andWhere('route.routeType = :routeType', { routeType });
+    }
+
+    const [list, total] = await query
+      .orderBy('route.routeId', 'ASC')
+      .skip(skip)
+      .take(size)
+      .getManyAndCount();
+
+    return createPaginationResult(
+      list.map((route) => this.toResponse(route)),
+      total,
+      page,
+      size,
+    );
   }
 
   async findOne(routeId: string) {

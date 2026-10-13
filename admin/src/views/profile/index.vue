@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { Key, OfficeBuilding, Phone, Postcard, User } from '@element-plus/icons-vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 
 import { PageHeader, UserAvatar } from '@/components';
-import { ROLE_LABELS } from '@/constants';
 import { useUserStore } from '@/stores/user';
-import type { ChangePasswordPayload, UpdateProfilePayload } from '@/types';
+import type { UpdateProfilePayload } from '@/types';
 import { formatDateTime } from '@/utils/format';
 
 defineOptions({ name: 'Profile' });
@@ -15,7 +14,7 @@ const userStore = useUserStore();
 
 const profile = computed(() => userStore.profile);
 
-const profileForm = reactive<UpdateProfilePayload>({
+const profileForm = reactive<Omit<UpdateProfilePayload, 'id'>>({
   nickname: profile.value?.nickname ?? '',
   email: profile.value?.email ?? '',
   phone: profile.value?.phone ?? '',
@@ -23,8 +22,26 @@ const profileForm = reactive<UpdateProfilePayload>({
   bio: profile.value?.bio ?? '',
 });
 
-const passwordForm = reactive<ChangePasswordPayload & { confirmPassword: string }>({
-  oldPassword: '',
+/** 登录接口返回的用户信息不含 phone / lastLoginAt，进入本页时用 /auth/profile 补齐 */
+function syncForm(): void {
+  const current = profile.value;
+  profileForm.nickname = current?.nickname ?? '';
+  profileForm.email = current?.email ?? '';
+  profileForm.phone = current?.phone ?? '';
+  profileForm.department = current?.department ?? '';
+  profileForm.bio = current?.bio ?? '';
+}
+
+onMounted(async () => {
+  try {
+    await userStore.loadProfile();
+  } catch {
+    // 失败提示由请求拦截器统一给出，页面继续展示已有信息
+  }
+  syncForm();
+});
+
+const passwordForm = reactive({
   newPassword: '',
   confirmPassword: '',
 });
@@ -50,10 +67,10 @@ const profileRules: FormRules<UpdateProfilePayload> = {
 };
 
 const passwordRules: FormRules = {
-  oldPassword: [{ required: true, message: '请输入当前密码', trigger: 'blur' }],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '新密码至少 6 位', trigger: 'blur' },
+    { min: 8, message: '新密码至少 8 位（与后端校验一致）', trigger: 'blur' },
+    { max: 72, message: '新密码不超过 72 位', trigger: 'blur' },
   ],
   confirmPassword: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },
@@ -97,12 +114,8 @@ async function savePassword(): Promise<void> {
   }
   savingPassword.value = true;
   try {
-    await userStore.changePassword({
-      oldPassword: passwordForm.oldPassword,
-      newPassword: passwordForm.newPassword,
-    });
+    await userStore.savePassword(passwordForm.newPassword);
     ElMessage.success('密码已更新，下次登录请使用新密码');
-    passwordForm.oldPassword = '';
     passwordForm.newPassword = '';
     passwordForm.confirmPassword = '';
     passwordRef.value.resetFields();
@@ -118,13 +131,17 @@ async function savePassword(): Promise<void> {
 
     <div class="profile__layout">
       <aside class="profile__summary">
-        <UserAvatar :nickname="profile?.nickname ?? '?'" :src="profile?.avatar" :size="72" />
+        <UserAvatar
+          :nickname="profile?.nickname ?? '?'"
+          :src="profile?.avatar ?? undefined"
+          :size="72"
+        />
         <h3>{{ profile?.nickname }}</h3>
         <p class="profile__account">@{{ profile?.username }}</p>
 
         <div class="profile__roles">
-          <el-tag v-for="role in userStore.roles" :key="role" size="small" effect="plain">
-            {{ ROLE_LABELS[role] }}
+          <el-tag size="small" effect="plain">
+            {{ userStore.roleName || '未分配角色' }}
           </el-tag>
         </div>
 
@@ -200,14 +217,6 @@ async function savePassword(): Promise<void> {
             label-width="88px"
             style="max-width: 520px"
           >
-            <el-form-item label="当前密码" prop="oldPassword">
-              <el-input
-                v-model="passwordForm.oldPassword"
-                type="password"
-                show-password
-                :prefix-icon="Key"
-              />
-            </el-form-item>
             <el-form-item label="新密码" prop="newPassword">
               <el-input
                 v-model="passwordForm.newPassword"

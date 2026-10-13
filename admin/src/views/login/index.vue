@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Lock, User } from '@element-plus/icons-vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 
+import { registerDynamicRoutes } from '@/router/register';
 import { usePermissionStore } from '@/stores/permission';
 import { useUserStore } from '@/stores/user';
 import type { LoginParams } from '@/types';
@@ -17,12 +18,13 @@ const permissionStore = usePermissionStore();
 
 const formRef = ref<FormInstance>();
 const loading = ref(false);
+const REMEMBER_KEY = 'album-forum:remember-username';
 
 const form = reactive<LoginParams>({
-  username: 'admin',
+  username: localStorage.getItem(REMEMBER_KEY) ?? 'admin',
   password: '123456',
-  remember: true,
 });
+const rememberUsername = ref(Boolean(localStorage.getItem(REMEMBER_KEY)));
 
 const rules: FormRules<LoginParams> = {
   username: [
@@ -36,9 +38,8 @@ const rules: FormRules<LoginParams> = {
 };
 
 const demoAccounts = [
-  { label: '超级管理员', username: 'admin' },
-  { label: '论坛运营', username: 'forum' },
-  { label: '广告运营', username: 'ads' },
+  { label: '超级管理员 · 全部页面', username: 'admin' },
+  { label: '普通用户 · 仅个人信息', username: 'user' },
 ];
 
 function fillAccount(username: string): void {
@@ -57,11 +58,25 @@ async function handleSubmit(): Promise<void> {
 
   loading.value = true;
   try {
+    // 1. 真实调用 /auth/login，拿到 accessToken / refreshToken / 用户信息
     await userStore.login({ ...form });
-    permissionStore.reset();
+
+    // 2. 用角色的 routeIdGroup 拉取路由树，动态生成并挂载路由
+    await registerDynamicRoutes(router, userStore.routeIdGroup);
+
+    if (rememberUsername.value) {
+      localStorage.setItem(REMEMBER_KEY, form.username);
+    } else {
+      localStorage.removeItem(REMEMBER_KEY);
+    }
+
     ElMessage.success('登录成功');
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard';
-    await router.replace(redirect);
+
+    // 3. 优先回跳到拦截前的地址，否则进入该角色的首页
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '';
+    await router.replace(redirect || permissionStore.homePath || '/403');
+  } catch {
+    // 失败提示由请求拦截器统一给出，这里只负责恢复按钮状态
   } finally {
     loading.value = false;
   }
@@ -108,7 +123,7 @@ async function handleSubmit(): Promise<void> {
           </el-form-item>
 
           <div class="login__row">
-            <el-checkbox v-model="form.remember">记住账号</el-checkbox>
+            <el-checkbox v-model="rememberUsername">记住账号</el-checkbox>
           </div>
 
           <el-button
@@ -135,7 +150,7 @@ async function handleSubmit(): Promise<void> {
               {{ account.label }}
             </el-button>
           </div>
-          <p class="login__demo-tip">账号密码统一为 123456，数据由本地 mock 提供</p>
+          <p class="login__demo-tip">密码统一为 123456，认证与路由权限均来自后端真实接口</p>
         </div>
       </div>
     </section>

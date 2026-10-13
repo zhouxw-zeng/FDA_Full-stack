@@ -7,7 +7,6 @@ import type {
   ForumDynamic,
   ForumPost,
   MediaItem,
-  UserProfile,
 } from '@/types';
 
 /** 固定种子的伪随机数：保证每次刷新看到的数据一致，方便对照调试 */
@@ -76,54 +75,6 @@ const DYNAMIC_TEXTS = [
 
 const ADVERTISERS = ['星野影像器材', '远山户外', '轻旅民宿', '一刻咖啡', '光合相机租赁', '云顶旅行'];
 const AD_NAMES = ['秋季器材促销', '城市打卡活动', '会员拉新计划', '品牌年度曝光', '短片征集大赛'];
-
-export const ADMIN_ACCOUNTS: Record<string, { password: string; profile: UserProfile }> = {
-  admin: {
-    password: '123456',
-    profile: {
-      id: 'U-1001',
-      username: 'admin',
-      nickname: '林致远',
-      avatar: '',
-      email: 'lin.zhiyuan@album-forum.dev',
-      phone: '13800000001',
-      department: '平台运营中心',
-      bio: '负责论坛内容治理与审核策略。',
-      roles: ['super_admin'],
-      lastLoginAt: isoDaysAgo(0, 2),
-    },
-  },
-  forum: {
-    password: '123456',
-    profile: {
-      id: 'U-1002',
-      username: 'forum',
-      nickname: '周未眠',
-      avatar: '',
-      email: 'zhou.weimian@album-forum.dev',
-      phone: '13800000002',
-      department: '社区内容运营',
-      bio: '负责论坛动态、板块审核与话题运营。',
-      roles: ['forum_admin'],
-      lastLoginAt: isoDaysAgo(0, 5),
-    },
-  },
-  ads: {
-    password: '123456',
-    profile: {
-      id: 'U-1003',
-      username: 'ads',
-      nickname: '苏紫宁',
-      avatar: '',
-      email: 'su.zining@album-forum.dev',
-      phone: '13800000003',
-      department: '商业化团队',
-      bio: '负责广告投放配置与效果复盘。',
-      roles: ['ad_admin'],
-      lastLoginAt: isoDaysAgo(1, 3),
-    },
-  },
-};
 
 function createMedia(rng: () => number, index: number): MediaItem {
   const isVideo = rng() > 0.55;
