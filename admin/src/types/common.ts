@@ -8,7 +8,8 @@ export interface ApiResponse<T> {
 /** 分页请求参数 */
 export interface PageQuery {
   page?: number;
-  pageSize?: number;
+  /** 每页条数，后端参数名为 size */
+  size?: number;
   keyword?: string;
 }
 
@@ -17,7 +18,9 @@ export interface PageResult<T> {
   list: T[];
   total: number;
   page: number;
-  pageSize: number;
+  size: number;
+  /** 后端为兼容旧前端同时返回 pageSize */
+  pageSize?: number;
 }
 
 /** 通用下拉选项 */

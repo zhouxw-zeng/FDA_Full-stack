@@ -30,6 +30,11 @@ export const httpClient = axios.create({
 });
 
 httpClient.interceptors.request.use((config) => {
+  // FormData 必须让浏览器自己带 multipart boundary，否则后端无法解析文件
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
+
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -139,7 +144,7 @@ async function request<T>(config: RequestConfig): Promise<T> {
 
 export const http = {
   get: <T>(url: string, params?: unknown, config?: RequestConfig) =>
-    request<T>({ ...config, url, method: 'GET', params }),
+    request<T>({ ...config, url, method: 'GET', params: sanitizeParams(params) }),
   post: <T>(url: string, data?: unknown, config?: RequestConfig) =>
     request<T>({ ...config, url, method: 'POST', data }),
   put: <T>(url: string, data?: unknown, config?: RequestConfig) =>
@@ -147,3 +152,19 @@ export const http = {
   delete: <T>(url: string, config?: RequestConfig) =>
     request<T>({ ...config, url, method: 'DELETE' }),
 };
+
+/**
+ * 后端的 ValidationPipe 开启了 forbidNonWhitelisted，空字符串会因为不满足
+ * `@IsIn` / `@IsInt` 直接 400。这里统一剔除空值，保留 0 与 false 这类有效值。
+ */
+function sanitizeParams(params?: unknown): Record<string, unknown> | undefined {
+  if (!params || typeof params !== 'object') {
+    return undefined;
+  }
+
+  const entries = Object.entries(params as Record<string, unknown>).filter(
+    ([, value]) => value !== '' && value !== null && value !== undefined,
+  );
+
+  return Object.fromEntries(entries);
+}

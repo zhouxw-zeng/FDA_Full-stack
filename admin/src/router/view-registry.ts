@@ -16,6 +16,8 @@ const VIEW_LOADERS: Record<string, ViewLoader> = {
   'analytics/behavior/index.vue': () => import('@/views/analytics/behavior/index.vue'),
   'preview/dynamic/index.vue': () => import('@/views/preview/dynamic/index.vue'),
   'profile/index.vue': () => import('@/views/profile/index.vue'),
+  'ai/models/index.vue': () => import('@/views/ai/models/index.vue'),
+  'ai/skills/index.vue': () => import('@/views/ai/skills/index.vue'),
 };
 
 function toRegistryKey(componentPath: string): string {
@@ -43,4 +45,3 @@ export function resolveViewComponent(componentPath: string | null): ViewLoader |
   }
   return loader;
 }
-

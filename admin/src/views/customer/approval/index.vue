@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
-import { Check, Close, Lock, View } from '@element-plus/icons-vue';
+import { Check, Close, Lock, Unlock, View } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
-import { auditCustomer, fetchCustomers } from '@/api/customer';
+import { auditCustomer, fetchCustomerDetail, fetchCustomers, updateCustomerStatus } from '@/api/customer';
 import {
   AuditDialog,
   DataTable,
@@ -16,12 +16,14 @@ import {
 import { useConfirm } from '@/composables/useConfirm';
 import { useTable } from '@/composables/useTable';
 import {
-  CUSTOMER_LEVEL_LABELS,
-  CUSTOMER_LEVEL_OPTIONS,
-  CUSTOMER_STATUS_OPTIONS,
+  AUDIT_STATUS_OPTIONS,
+  ENABLED_OPTIONS,
+  GENDER_LABELS,
+  VIP_LEVEL_LABELS,
+  VIP_LEVEL_OPTIONS,
 } from '@/constants';
 import type { Customer, CustomerQuery } from '@/types';
-import { formatDateTime } from '@/utils/format';
+import { formatDate, formatDateTime } from '@/utils/format';
 
 defineOptions({ name: 'CustomerApproval' });
 
@@ -32,18 +34,19 @@ const { list, total, loading, query, search, reset, reload, changePage, changePa
   CustomerQuery
 >({
   fetcher: fetchCustomers,
-  defaults: { keyword: '', status: '', level: '' },
+  defaults: { keyword: '', auditStatus: '', vipLevel: '', enabled: '' },
 });
 
 const columns: TableColumn[] = [
   { prop: 'nickname', label: '用户', minWidth: 200, slot: 'nickname' },
   { prop: 'phone', label: '手机号', width: 130 },
-  { prop: 'region', label: '地区', width: 90 },
-  { prop: 'level', label: '等级', width: 100, slot: 'level', align: 'center' },
-  { prop: 'dynamicCount', label: '发布动态', width: 100, align: 'center' },
-  { prop: 'registeredAt', label: '注册时间', width: 150, slot: 'registeredAt' },
-  { prop: 'status', label: '状态', width: 104, slot: 'status', align: 'center' },
-  { prop: 'actions', label: '操作', width: 200, slot: 'actions', fixed: 'right' },
+  { prop: 'region', label: '地区', width: 90, slot: 'region' },
+  { prop: 'vipLevel', label: 'VIP', width: 90, slot: 'vipLevel', align: 'center' },
+  { prop: 'dynamicCount', label: '动态数', width: 90, align: 'center' },
+  { prop: 'createdAt', label: '注册时间', width: 140, slot: 'createdAt' },
+  { prop: 'auditStatus', label: '审核', width: 96, slot: 'auditStatus', align: 'center' },
+  { prop: 'enabled', label: '状态', width: 96, slot: 'enabled', align: 'center' },
+  { prop: 'actions', label: '操作', width: 210, slot: 'actions', fixed: 'right' },
 ];
 
 const selection = ref<Customer[]>([]);
@@ -53,18 +56,16 @@ const auditState = reactive<{
   visible: boolean;
   action: 'approve' | 'reject';
   target: Customer | null;
-}>({
-  visible: false,
-  action: 'approve',
-  target: null,
-});
+}>({ visible: false, action: 'approve', target: null });
 
 const detailState = reactive<{ visible: boolean; target: Customer | null }>({
   visible: false,
   target: null,
 });
 
-const pendingSelection = computed(() => selection.value.filter((item) => item.status === 'pending'));
+const pendingSelection = computed(() =>
+  selection.value.filter((item) => item.auditStatus === 'pending'),
+);
 
 function openAudit(row: Customer, action: 'approve' | 'reject'): void {
   auditState.target = row;
@@ -72,9 +73,10 @@ function openAudit(row: Customer, action: 'approve' | 'reject'): void {
   auditState.visible = true;
 }
 
-function openDetail(row: Customer): void {
+async function openDetail(row: Customer): Promise<void> {
   detailState.target = row;
   detailState.visible = true;
+  detailState.target = await fetchCustomerDetail(row.id);
 }
 
 async function submitAudit(remark: string): Promise<void> {
@@ -83,31 +85,46 @@ async function submitAudit(remark: string): Promise<void> {
   }
   submitting.value = true;
   try {
-    await auditCustomer(auditState.target.id, {
+    const updated = await auditCustomer({
+      id: auditState.target.id,
       status: auditState.action === 'approve' ? 'approved' : 'rejected',
       remark,
     });
-    ElMessage.success(auditState.action === 'approve' ? '已通过该用户' : '已驳回该用户');
+    ElMessage.success(auditState.action === 'approve' ? '已通过该用户资料' : '已驳回该用户资料');
     auditState.visible = false;
+    if (detailState.visible && detailState.target?.id === updated.id) {
+      detailState.target = updated;
+    }
     await reload();
   } finally {
     submitting.value = false;
   }
 }
 
-async function banCustomer(row: Customer): Promise<void> {
-  const accepted = await confirm(`封禁后「${row.nickname}」将无法登录 C 端，确定继续吗？`, {
-    title: '封禁账号',
-    confirmText: '封禁',
-    danger: true,
-  });
+/** 启用 / 禁用：对应后端 PUT /customers/status */
+async function toggleEnabled(row: Customer): Promise<void> {
+  const next = row.enabled === 1 ? 0 : 1;
+  const accepted = await confirm(
+    next === 1
+      ? `启用后「${row.nickname}」可以正常登录 C 端，确定继续吗？`
+      : `禁用后「${row.nickname}」将无法登录 C 端，确定继续吗？`,
+    {
+      title: next === 1 ? '启用账号' : '禁用账号',
+      confirmText: next === 1 ? '启用' : '禁用',
+      danger: next === 0,
+    },
+  );
   if (!accepted) {
     return;
   }
+
   submitting.value = true;
   try {
-    await auditCustomer(row.id, { status: 'banned', remark: '违反社区规范' });
-    ElMessage.success('账号已封禁');
+    const updated = await updateCustomerStatus({ id: row.id, enabled: next });
+    ElMessage.success(next === 1 ? '账号已启用' : '账号已禁用');
+    if (detailState.visible && detailState.target?.id === updated.id) {
+      detailState.target = updated;
+    }
     await reload();
   } finally {
     submitting.value = false;
@@ -127,10 +144,13 @@ async function batchApprove(): Promise<void> {
   if (!accepted) {
     return;
   }
+
   submitting.value = true;
   try {
     await Promise.all(
-      targets.map((item) => auditCustomer(item.id, { status: 'approved', remark: '批量通过' })),
+      targets.map((item) =>
+        auditCustomer({ id: item.id, status: 'approved', remark: '批量通过' }),
+      ),
     );
     ElMessage.success(`已通过 ${targets.length} 位用户`);
     selection.value = [];
@@ -143,7 +163,7 @@ async function batchApprove(): Promise<void> {
 
 <template>
   <div class="customer-approval">
-    <PageHeader title="C 端用户审批" description="核对注册资料，处理新用户审核与异常账号封禁">
+    <PageHeader title="C 端用户审批" description="核对注册资料，处理用户审核与账号启停">
       <template #actions>
         <el-button
           type="primary"
@@ -165,18 +185,26 @@ async function batchApprove(): Promise<void> {
         style="width: 240px"
         @keyup.enter="search"
       />
-      <el-select v-model="query.status" placeholder="账号状态" clearable style="width: 140px">
+      <el-select v-model="query.auditStatus" placeholder="审核状态" clearable style="width: 140px">
         <el-option
-          v-for="option in CUSTOMER_STATUS_OPTIONS"
+          v-for="option in AUDIT_STATUS_OPTIONS"
           :key="option.value"
           :label="option.label"
           :value="option.value"
         />
       </el-select>
-      <el-select v-model="query.level" placeholder="用户等级" clearable style="width: 140px">
+      <el-select v-model="query.vipLevel" placeholder="VIP 等级" clearable style="width: 130px">
         <el-option
-          v-for="option in CUSTOMER_LEVEL_OPTIONS"
+          v-for="option in VIP_LEVEL_OPTIONS"
           :key="option.value"
+          :label="option.label"
+          :value="Number(option.value)"
+        />
+      </el-select>
+      <el-select v-model="query.enabled" placeholder="账号状态" clearable style="width: 130px">
+        <el-option
+          v-for="option in ENABLED_OPTIONS"
+          :key="option.label"
           :label="option.label"
           :value="option.value"
         />
@@ -189,7 +217,7 @@ async function batchApprove(): Promise<void> {
       :loading="loading"
       :total="total"
       :page="query.page"
-      :page-size="query.pageSize"
+      :page-size="query.size"
       selectable
       empty-text="没有符合条件的用户"
       @update:page="changePage"
@@ -198,43 +226,49 @@ async function batchApprove(): Promise<void> {
     >
       <template #nickname="{ row }">
         <div class="cell-user">
-          <UserAvatar :nickname="(row as Customer).nickname" :src="(row as Customer).avatar" />
+          <UserAvatar
+            :nickname="(row as Customer).nickname"
+            :src="(row as Customer).avatar || undefined"
+          />
           <div class="cell-user__text">
             <strong>{{ (row as Customer).nickname }}</strong>
-            <small>{{ (row as Customer).email }}</small>
+            <small>{{ (row as Customer).username ?? '未设置账号名' }}</small>
           </div>
         </div>
       </template>
 
-      <template #level="{ row }">
-        <el-tag size="small" effect="plain" type="info">
-          {{ CUSTOMER_LEVEL_LABELS[(row as Customer).level] }}
+      <template #region="{ row }">
+        <span>{{ (row as Customer).region ?? '-' }}</span>
+      </template>
+
+      <template #vipLevel="{ row }">
+        <el-tag size="small" effect="plain" type="warning">
+          {{ VIP_LEVEL_LABELS[(row as Customer).vipLevel] ?? `VIP${(row as Customer).vipLevel}` }}
         </el-tag>
       </template>
 
-      <template #registeredAt="{ row }">
-        <span class="cell-time">{{ formatDateTime((row as Customer).registeredAt) }}</span>
+      <template #createdAt="{ row }">
+        <span class="cell-time">{{ formatDate((row as Customer).createdAt) }}</span>
       </template>
 
-      <template #status="{ row }">
-        <StatusTag kind="customer" :value="(row as Customer).status" />
+      <template #auditStatus="{ row }">
+        <StatusTag kind="audit" :value="(row as Customer).auditStatus" />
+      </template>
+
+      <template #enabled="{ row }">
+        <StatusTag kind="customerEnabled" :value="(row as Customer).enabled" />
       </template>
 
       <template #actions="{ row }">
         <div class="table-actions">
-          <el-button
-            link
-            type="primary"
-            :icon="View"
-            @click="openDetail(row as Customer)"
-          >
+          <el-button link type="primary" :icon="View" @click="openDetail(row as Customer)">
             详情
           </el-button>
           <el-button
             link
             type="success"
             :icon="Check"
-            :disabled="(row as Customer).status === 'approved'"
+            :disabled="(row as Customer).auditStatus === 'approved'"
             @click="openAudit(row as Customer, 'approve')"
           >
             通过
@@ -243,19 +277,18 @@ async function batchApprove(): Promise<void> {
             link
             type="danger"
             :icon="Close"
-            :disabled="(row as Customer).status === 'rejected'"
+            :disabled="(row as Customer).auditStatus === 'rejected'"
             @click="openAudit(row as Customer, 'reject')"
           >
             驳回
           </el-button>
           <el-button
             link
-            type="warning"
-            :icon="Lock"
-            :disabled="(row as Customer).status === 'banned'"
-            @click="banCustomer(row as Customer)"
+            :type="(row as Customer).enabled === 1 ? 'warning' : 'success'"
+            :icon="(row as Customer).enabled === 1 ? Lock : Unlock"
+            @click="toggleEnabled(row as Customer)"
           >
-            封禁
+            {{ (row as Customer).enabled === 1 ? '禁用' : '启用' }}
           </el-button>
         </div>
       </template>
@@ -269,38 +302,58 @@ async function batchApprove(): Promise<void> {
       @submit="submitAudit"
     />
 
-    <el-drawer v-model="detailState.visible" title="用户详情" size="440px" destroy-on-close>
+    <el-drawer v-model="detailState.visible" title="用户详情" size="460px" destroy-on-close>
       <div v-if="detailState.target" class="customer-detail">
         <div class="customer-detail__head">
           <UserAvatar
             :nickname="detailState.target.nickname"
-            :src="detailState.target.avatar"
+            :src="detailState.target.avatar || undefined"
             :size="48"
           />
           <div>
             <strong>{{ detailState.target.nickname }}</strong>
-            <small>{{ detailState.target.id }}</small>
+            <small>{{ detailState.target.username ?? `#${detailState.target.id}` }}</small>
           </div>
-          <StatusTag kind="customer" :value="detailState.target.status" />
+          <StatusTag kind="customerEnabled" :value="detailState.target.enabled" />
         </div>
 
         <el-descriptions :column="1" border size="small">
-          <el-descriptions-item label="手机号">{{ detailState.target.phone }}</el-descriptions-item>
-          <el-descriptions-item label="邮箱">{{ detailState.target.email }}</el-descriptions-item>
-          <el-descriptions-item label="所在地区">{{ detailState.target.region }}</el-descriptions-item>
-          <el-descriptions-item label="用户等级">
-            {{ CUSTOMER_LEVEL_LABELS[detailState.target.level] }}
+          <el-descriptions-item label="审核状态">
+            <StatusTag kind="audit" :value="detailState.target.auditStatus" />
           </el-descriptions-item>
-          <el-descriptions-item label="发布动态">
+          <el-descriptions-item label="手机号">{{ detailState.target.phone }}</el-descriptions-item>
+          <el-descriptions-item label="邮箱">
+            {{ detailState.target.email ?? '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="性别">
+            {{ GENDER_LABELS[detailState.target.gender] ?? '未知' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="生日">
+            {{ detailState.target.birthday ?? '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="地区">
+            {{ detailState.target.region ?? '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="VIP 等级">
+            {{ VIP_LEVEL_LABELS[detailState.target.vipLevel] ?? detailState.target.vipLevel }}
+          </el-descriptions-item>
+          <el-descriptions-item label="动态数量">
             {{ detailState.target.dynamicCount }} 条
           </el-descriptions-item>
           <el-descriptions-item label="注册时间">
-            {{ formatDateTime(detailState.target.registeredAt) }}
+            {{ formatDateTime(detailState.target.createdAt) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="最近登录">
+            {{ formatDateTime(detailState.target.lastLoginAt) }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="detailState.target.signature" label="个性签名">
+            {{ detailState.target.signature }}
           </el-descriptions-item>
           <el-descriptions-item v-if="detailState.target.auditRemark" label="审批意见">
             {{ detailState.target.auditRemark }}
           </el-descriptions-item>
         </el-descriptions>
+
       </div>
 
       <template #footer>

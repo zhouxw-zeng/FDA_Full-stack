@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { Check, Close, View } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
-import { auditForumPost, fetchForumPosts } from '@/api/forum';
+import {
+  auditForumDynamic,
+  fetchForumChangeLogs,
+  fetchForumDynamicDetail,
+  fetchForumDynamics,
+  fetchForumDynamicTypes,
+} from '@/api/forum';
 import {
   AuditDialog,
   DataTable,
+  EmptyState,
   MediaPreviewDialog,
   MediaThumb,
   PageHeader,
@@ -17,86 +24,72 @@ import {
 } from '@/components';
 import { useConfirm } from '@/composables/useConfirm';
 import { useTable } from '@/composables/useTable';
-import { AUDIT_STATUS_OPTIONS, FORUM_CATEGORY_OPTIONS } from '@/constants';
-import type { ForumPost, ForumPostQuery } from '@/types';
+import { AUDIT_STATUS_OPTIONS, CHANGE_ACTION_LABELS } from '@/constants';
+import type {
+  ForumChangeLog,
+  ForumDynamic,
+  ForumDynamicQuery,
+  ForumDynamicType,
+} from '@/types';
 import { formatDateTime } from '@/utils/format';
 
 defineOptions({ name: 'ForumApproval' });
 
 const { confirm } = useConfirm();
 
-const {
-  list,
-  total,
-  loading,
-  query,
-  search,
-  reset,
-  reload,
-  changePage,
-  changePageSize,
-} = useTable<ForumPost, ForumPostQuery>({
-  fetcher: fetchForumPosts,
-  defaults: { keyword: '', status: '', category: '' },
+const { list, total, loading, query, search, reset, reload, changePage, changePageSize } = useTable<
+  ForumDynamic,
+  ForumDynamicQuery
+>({
+  fetcher: fetchForumDynamics,
+  // 默认只看待审队列，可切换审核状态回看历史
+  defaults: { keyword: '', typeId: '', auditStatus: 'pending' },
 });
 
 const columns: TableColumn[] = [
-  { prop: 'cover', label: '封面', width: 100, slot: 'cover' },
-  { prop: 'title', label: '论坛信息', minWidth: 260, slot: 'title' },
-  { prop: 'category', label: '分类', width: 110 },
-  { prop: 'author.nickname', label: '提交人', width: 150, slot: 'author' },
-  { prop: 'mediaCount', label: '素材', width: 80, align: 'center' },
-  { prop: 'submitAt', label: '提交时间', width: 150, slot: 'submitAt' },
-  { prop: 'status', label: '状态', width: 104, slot: 'status', align: 'center' },
-  { prop: 'actions', label: '操作', width: 200, slot: 'actions', fixed: 'right' },
+  { prop: 'content', label: '动态内容', minWidth: 300, slot: 'content' },
+  { prop: 'media', label: '素材', width: 150, slot: 'media' },
+  { prop: 'author.nickname', label: '发布人', width: 150, slot: 'author' },
+  { prop: 'typeName', label: '类型', width: 110 },
+  { prop: 'createdAt', label: '提交时间', width: 150, slot: 'createdAt' },
+  { prop: 'auditStatus', label: '审核状态', width: 104, slot: 'auditStatus', align: 'center' },
+  { prop: 'actions', label: '操作', width: 190, slot: 'actions', fixed: 'right' },
 ];
 
-const selection = ref<ForumPost[]>([]);
+const types = ref<ForumDynamicType[]>([]);
+const selection = ref<ForumDynamic[]>([]);
 const submitting = ref(false);
 
 const auditState = reactive<{
   visible: boolean;
   action: 'approve' | 'reject';
-  target: ForumPost | null;
-}>({
-  visible: false,
-  action: 'approve',
-  target: null,
-});
+  target: ForumDynamic | null;
+}>({ visible: false, action: 'approve', target: null });
 
-const detailState = reactive<{
-  visible: boolean;
-  target: ForumPost | null;
-}>({
+const detailState = reactive<{ visible: boolean; target: ForumDynamic | null }>({
   visible: false,
   target: null,
 });
 
-const previewState = reactive<{
-  visible: boolean;
-  index: number;
-}>({
+const logs = ref<ForumChangeLog[]>([]);
+const logsLoading = ref(false);
+
+const previewState = reactive<{ visible: boolean; index: number; target: ForumDynamic | null }>({
   visible: false,
   index: 0,
+  target: null,
 });
 
-const previewItems = computed(() => (detailState.target ? [detailState.target.cover] : []));
-const pendingSelection = computed(() => selection.value.filter((item) => item.status === 'pending'));
+const previewItems = computed(() => previewState.target?.media ?? []);
+/** 只有待审的记录可以批量通过 */
+const pendingSelection = computed(() =>
+  selection.value.filter((item) => item.auditStatus === 'pending'),
+);
 
-function openAudit(row: ForumPost, action: 'approve' | 'reject'): void {
+function openAudit(row: ForumDynamic, action: 'approve' | 'reject'): void {
   auditState.target = row;
   auditState.action = action;
   auditState.visible = true;
-}
-
-function openDetail(row: ForumPost): void {
-  detailState.target = row;
-  detailState.visible = true;
-}
-
-function openPreview(row: ForumPost): void {
-  detailState.target = row;
-  previewState.visible = true;
 }
 
 async function submitAudit(remark: string): Promise<void> {
@@ -105,13 +98,17 @@ async function submitAudit(remark: string): Promise<void> {
   }
   submitting.value = true;
   try {
-    await auditForumPost(auditState.target.id, {
+    await auditForumDynamic({
+      id: auditState.target.id,
       status: auditState.action === 'approve' ? 'approved' : 'rejected',
       remark,
     });
-    ElMessage.success(auditState.action === 'approve' ? '已通过该论坛信息' : '已驳回该论坛信息');
+    ElMessage.success(auditState.action === 'approve' ? '已通过该动态' : '已驳回该动态');
     auditState.visible = false;
     await reload();
+    if (detailState.visible && detailState.target?.id === auditState.target.id) {
+      detailState.visible = false;
+    }
   } finally {
     submitting.value = false;
   }
@@ -120,10 +117,10 @@ async function submitAudit(remark: string): Promise<void> {
 async function batchApprove(): Promise<void> {
   const targets = pendingSelection.value;
   if (targets.length === 0) {
-    ElMessage.warning('请先勾选待审批的论坛信息');
+    ElMessage.warning('请先勾选待审批的动态');
     return;
   }
-  const accepted = await confirm(`将批量通过 ${targets.length} 条论坛信息，确定继续吗？`, {
+  const accepted = await confirm(`将批量通过 ${targets.length} 条动态，确定继续吗？`, {
     title: '批量通过',
     confirmText: '全部通过',
   });
@@ -133,21 +130,59 @@ async function batchApprove(): Promise<void> {
 
   submitting.value = true;
   try {
+    // 后端没有批量接口，这里并发调用单条审批
     await Promise.all(
-      targets.map((item) => auditForumPost(item.id, { status: 'approved', remark: '批量通过' })),
+      targets.map((item) =>
+        auditForumDynamic({ id: item.id, status: 'approved', remark: '批量通过' }),
+      ),
     );
-    ElMessage.success(`已通过 ${targets.length} 条论坛信息`);
+    ElMessage.success(`已通过 ${targets.length} 条动态`);
     selection.value = [];
     await reload();
   } finally {
     submitting.value = false;
   }
 }
+
+async function openDetail(row: ForumDynamic): Promise<void> {
+  detailState.target = row;
+  detailState.visible = true;
+  logs.value = [];
+  logsLoading.value = true;
+  try {
+    const [detail, logPage] = await Promise.all([
+      fetchForumDynamicDetail(row.id),
+      fetchForumChangeLogs({ targetId: row.id, page: 1, size: 20 }),
+    ]);
+    detailState.target = detail;
+    logs.value = logPage.list;
+  } finally {
+    logsLoading.value = false;
+  }
+}
+
+function openPreview(row: ForumDynamic, index = 0): void {
+  if (row.media.length === 0) {
+    ElMessage.info('该动态没有可预览的素材');
+    return;
+  }
+  previewState.target = row;
+  previewState.index = index;
+  previewState.visible = true;
+}
+
+onMounted(async () => {
+  const result = await fetchForumDynamicTypes();
+  types.value = result.list;
+});
 </script>
 
 <template>
   <div class="forum-approval">
-    <PageHeader title="论坛信息审批" description="审核用户提交的板块与帖子主体，确认分类与内容合规">
+    <PageHeader
+      title="论坛信息审批"
+      description="审核 C 端提交的论坛动态，通过后才会在社区展示"
+    >
       <template #actions>
         <el-button
           type="primary"
@@ -164,12 +199,12 @@ async function batchApprove(): Promise<void> {
     <SearchPanel :loading="loading" @search="search" @reset="reset">
       <el-input
         v-model="query.keyword"
-        placeholder="搜索标题 / 提交人 / 编号"
+        placeholder="搜索内容 / 发布人 / 编号"
         clearable
         style="width: 240px"
         @keyup.enter="search"
       />
-      <el-select v-model="query.status" placeholder="审批状态" clearable style="width: 140px">
+      <el-select v-model="query.auditStatus" placeholder="审核状态" clearable style="width: 140px">
         <el-option
           v-for="option in AUDIT_STATUS_OPTIONS"
           :key="option.value"
@@ -177,12 +212,12 @@ async function batchApprove(): Promise<void> {
           :value="option.value"
         />
       </el-select>
-      <el-select v-model="query.category" placeholder="所属分类" clearable style="width: 140px">
+      <el-select v-model="query.typeId" placeholder="动态类型" clearable style="width: 150px">
         <el-option
-          v-for="option in FORUM_CATEGORY_OPTIONS"
-          :key="option.value"
-          :label="option.label"
-          :value="option.value"
+          v-for="type in types"
+          :key="type.typeId"
+          :label="type.typeName"
+          :value="type.typeId"
         />
       </el-select>
     </SearchPanel>
@@ -193,57 +228,74 @@ async function batchApprove(): Promise<void> {
       :loading="loading"
       :total="total"
       :page="query.page"
-      :page-size="query.pageSize"
+      :page-size="query.size"
       selectable
-      empty-text="没有符合条件的论坛信息"
+      empty-text="没有符合条件的待审动态"
       @update:page="changePage"
       @update:page-size="changePageSize"
       @selection-change="selection = $event"
     >
-      <template #cover="{ row }">
-        <button
-          type="button"
-          class="cover-button"
-          :aria-label="`预览 ${row.title}`"
-          @click="openPreview(row as ForumPost)"
-        >
-          <MediaThumb :media="(row as ForumPost).cover" />
-        </button>
+      <template #content="{ row }">
+        <div class="cell-content">
+          <el-tag v-if="(row as ForumDynamic).pinned" type="warning" size="small" effect="plain">
+            置顶
+          </el-tag>
+          <span class="cell-content__text">{{ (row as ForumDynamic).content }}</span>
+          <span class="cell-content__meta">{{ (row as ForumDynamic).id }}</span>
+        </div>
       </template>
 
-      <template #title="{ row }">
-        <div class="cell-title">
-          <strong>{{ (row as ForumPost).title }}</strong>
-          <span class="cell-title__meta">{{ (row as ForumPost).id }}</span>
+      <template #media="{ row }">
+        <div class="cell-media">
+          <button
+            v-for="(media, index) in (row as ForumDynamic).media.slice(0, 3)"
+            :key="media.id"
+            type="button"
+            class="cell-media__item"
+            :aria-label="`预览第 ${index + 1} 个素材`"
+            @click="openPreview(row as ForumDynamic, index)"
+          >
+            <MediaThumb :media="media" :show-kind="false" />
+          </button>
+          <span v-if="(row as ForumDynamic).media.length === 0" class="cell-media__empty">
+            纯文本
+          </span>
+          <span v-else-if="(row as ForumDynamic).media.length > 3" class="cell-media__more">
+            +{{ (row as ForumDynamic).media.length - 3 }}
+          </span>
         </div>
       </template>
 
       <template #author="{ row }">
         <div class="cell-author">
-          <UserAvatar :nickname="(row as ForumPost).author.nickname" :size="26" />
-          <span>{{ (row as ForumPost).author.nickname }}</span>
+          <UserAvatar
+            :nickname="(row as ForumDynamic).author.nickname"
+            :src="(row as ForumDynamic).author.avatar || undefined"
+            :size="26"
+          />
+          <span>{{ (row as ForumDynamic).author.nickname }}</span>
         </div>
       </template>
 
-      <template #submitAt="{ row }">
-        <span class="cell-time">{{ formatDateTime((row as ForumPost).submitAt) }}</span>
+      <template #createdAt="{ row }">
+        <span class="cell-time">{{ formatDateTime((row as ForumDynamic).createdAt) }}</span>
       </template>
 
-      <template #status="{ row }">
-        <StatusTag kind="audit" :value="(row as ForumPost).status" />
+      <template #auditStatus="{ row }">
+        <StatusTag kind="audit" :value="(row as ForumDynamic).auditStatus" />
       </template>
 
       <template #actions="{ row }">
         <div class="table-actions">
-          <el-button link type="primary" :icon="View" @click="openDetail(row as ForumPost)">
+          <el-button link type="primary" :icon="View" @click="openDetail(row as ForumDynamic)">
             详情
           </el-button>
           <el-button
             link
             type="success"
             :icon="Check"
-            :disabled="(row as ForumPost).status === 'approved'"
-            @click="openAudit(row as ForumPost, 'approve')"
+            :disabled="(row as ForumDynamic).auditStatus === 'approved'"
+            @click="openAudit(row as ForumDynamic, 'approve')"
           >
             通过
           </el-button>
@@ -251,8 +303,8 @@ async function batchApprove(): Promise<void> {
             link
             type="danger"
             :icon="Close"
-            :disabled="(row as ForumPost).status === 'rejected'"
-            @click="openAudit(row as ForumPost, 'reject')"
+            :disabled="(row as ForumDynamic).auditStatus === 'rejected'"
+            @click="openAudit(row as ForumDynamic, 'reject')"
           >
             驳回
           </el-button>
@@ -263,65 +315,85 @@ async function batchApprove(): Promise<void> {
     <AuditDialog
       v-model="auditState.visible"
       :action="auditState.action"
-      :subject="auditState.target?.title"
+      :subject="auditState.target?.content"
       :loading="submitting"
       @submit="submitAudit"
     />
 
-    <MediaPreviewDialog v-model="previewState.visible" :items="previewItems" :start-index="0" />
+    <MediaPreviewDialog
+      v-model="previewState.visible"
+      :items="previewItems"
+      :start-index="previewState.index"
+    />
 
-    <el-drawer v-model="detailState.visible" title="论坛信息详情" size="520px" destroy-on-close>
+    <el-drawer v-model="detailState.visible" title="动态详情" size="520px" destroy-on-close>
       <template v-if="detailState.target">
         <div class="detail">
-          <MediaThumb :media="detailState.target.cover" />
+          <header class="detail__head">
+            <UserAvatar
+              :nickname="detailState.target.author.nickname"
+              :src="detailState.target.author.avatar || undefined"
+              :size="36"
+            />
+            <div>
+              <strong>{{ detailState.target.author.nickname }}</strong>
+              <small>{{ formatDateTime(detailState.target.createdAt) }}</small>
+            </div>
+            <el-tag size="small" effect="plain">{{ detailState.target.typeName }}</el-tag>
+          </header>
 
-          <h3 class="detail__title">{{ detailState.target.title }}</h3>
+          <p class="detail__content">{{ detailState.target.content }}</p>
+
+          <div v-if="detailState.target.media.length" class="detail__media">
+            <MediaThumb
+              v-for="(media, index) in detailState.target.media"
+              :key="media.id"
+              :media="media"
+              @click="openPreview(detailState.target as ForumDynamic, index)"
+            />
+          </div>
 
           <el-descriptions :column="2" border size="small">
-            <el-descriptions-item label="编号">{{ detailState.target.id }}</el-descriptions-item>
-            <el-descriptions-item label="分类">{{ detailState.target.category }}</el-descriptions-item>
-            <el-descriptions-item label="提交人">
-              {{ detailState.target.author.nickname }}
+            <el-descriptions-item label="动态编号">
+              {{ detailState.target.id }}
             </el-descriptions-item>
-            <el-descriptions-item label="素材数量">
-              {{ detailState.target.mediaCount }}
+            <el-descriptions-item label="话题">
+              {{ detailState.target.topic }}
             </el-descriptions-item>
-            <el-descriptions-item label="浏览">
-              {{ detailState.target.viewCount.toLocaleString('zh-CN') }}
+            <el-descriptions-item label="点赞">
+              {{ detailState.target.likeCount }}
             </el-descriptions-item>
             <el-descriptions-item label="评论">
-              {{ detailState.target.commentCount.toLocaleString('zh-CN') }}
+              {{ detailState.target.commentCount }}
             </el-descriptions-item>
-            <el-descriptions-item label="提交时间">
-              {{ formatDateTime(detailState.target.submitAt) }}
+            <el-descriptions-item label="审核状态">
+              <StatusTag kind="audit" :value="detailState.target.auditStatus" />
             </el-descriptions-item>
-            <el-descriptions-item label="审批状态">
-              <StatusTag kind="audit" :value="detailState.target.status" />
+            <el-descriptions-item label="展示状态">
+              <StatusTag kind="forumEnabled" :value="detailState.target.enabled" />
             </el-descriptions-item>
           </el-descriptions>
 
           <section class="detail__block">
-            <h4>内容简介</h4>
-            <p>{{ detailState.target.summary }}</p>
-          </section>
-
-          <section class="detail__block">
-            <h4>标签</h4>
-            <div class="detail__tags">
-              <el-tag
-                v-for="tag in detailState.target.tags"
-                :key="tag"
-                size="small"
-                effect="plain"
+            <h4>变更日志</h4>
+            <el-skeleton v-if="logsLoading" :rows="2" animated />
+            <EmptyState v-else-if="logs.length === 0" description="暂无变更记录" compact />
+            <el-timeline v-else>
+              <el-timeline-item
+                v-for="log in logs"
+                :key="log.id"
+                :timestamp="formatDateTime(log.changedAt)"
+                placement="top"
               >
-                {{ tag }}
-              </el-tag>
-            </div>
-          </section>
-
-          <section v-if="detailState.target.auditRemark" class="detail__block">
-            <h4>审批意见</h4>
-            <p class="detail__remark">{{ detailState.target.auditRemark }}</p>
+                <p class="detail__log-title">
+                  {{ CHANGE_ACTION_LABELS[log.action] ?? log.action }}
+                  <span class="detail__log-actor">
+                    {{ log.editorType === 'admin' ? '管理员' : '用户' }} #{{ log.editorId }}
+                  </span>
+                </p>
+                <span v-if="log.remark" class="detail__log-remark">{{ log.remark }}</span>
+              </el-timeline-item>
+            </el-timeline>
           </section>
         </div>
       </template>
@@ -336,11 +408,7 @@ async function batchApprove(): Promise<void> {
           >
             驳回
           </el-button>
-          <el-button
-            type="primary"
-            :icon="Check"
-            @click="openAudit(detailState.target, 'approve')"
-          >
+          <el-button type="primary" :icon="Check" @click="openAudit(detailState.target, 'approve')">
             通过
           </el-button>
         </template>
@@ -350,25 +418,41 @@ async function batchApprove(): Promise<void> {
 </template>
 
 <style scoped lang="scss">
-.cover-button {
-  width: 64px;
-  padding: 0;
-  cursor: pointer;
-  background: none;
-  border: none;
-}
-
-.cell-title {
+.cell-content {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  align-items: flex-start;
 
-  strong {
+  &__text {
+    display: -webkit-box;
+    overflow: hidden;
     color: var(--app-ink);
-    font-weight: 500;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 
   &__meta {
+    color: var(--app-ink-3);
+    font-size: 12px;
+  }
+}
+
+.cell-media {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+
+  &__item {
+    width: 44px;
+    padding: 0;
+    cursor: pointer;
+    background: none;
+    border: none;
+  }
+
+  &__more,
+  &__empty {
     color: var(--app-ink-3);
     font-size: 12px;
   }
@@ -390,37 +474,66 @@ async function batchApprove(): Promise<void> {
   flex-direction: column;
   gap: 16px;
 
-  &__title {
-    color: var(--app-ink);
-    font-size: 16px;
-    font-weight: 600;
+  &__head {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+
+    div {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+    }
+
+    strong {
+      color: var(--app-ink);
+      font-size: 13px;
+    }
+
+    small {
+      color: var(--app-ink-3);
+      font-size: 12px;
+    }
+  }
+
+  &__content {
+    color: var(--app-ink-2);
+    line-height: 1.75;
+  }
+
+  &__media {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+
+    :deep(.media-thumb) {
+      cursor: pointer;
+    }
   }
 
   &__block {
     h4 {
-      margin-bottom: 6px;
+      margin-bottom: 8px;
       color: var(--app-ink-3);
       font-size: 12px;
       font-weight: 500;
     }
-
-    p {
-      color: var(--app-ink-2);
-      line-height: 1.7;
-    }
   }
 
-  &__remark {
-    padding: 8px 12px;
-    background-color: var(--app-surface-2);
-    border-left: 2px solid var(--app-warning);
-    border-radius: var(--app-radius-sm);
+  &__log-title {
+    color: var(--app-ink);
+    font-size: 13px;
   }
 
-  &__tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+  &__log-actor {
+    margin-left: 6px;
+    color: var(--app-ink-3);
+    font-size: 12px;
+  }
+
+  &__log-remark {
+    color: var(--app-ink-2);
+    font-size: 12px;
   }
 }
 </style>

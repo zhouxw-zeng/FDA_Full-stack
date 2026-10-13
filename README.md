@@ -38,7 +38,7 @@ pnpm run dev:server  # 后端：NestJS → http://localhost:3000/api
 - `pnpm run dev` 会先由 Webpack 检查 `5173` 和 `3000` 端口，若旧服务仍占用端口会先结束旧进程，再启动 Webpack 和 NestJS
 - 后端由 `admin/webpack.config.cjs` 中的 `BackendDevServerPlugin` 启动，根目录脚本不再单独启动后端
 - 登录、令牌刷新与动态路由已对接后端真实接口；演示账号 `admin`（超级管理员）与 `user`（普通用户），密码均为 `123456`
-- 论坛 / 客户 / 广告 / 分析等模块后端尚未实现，开发环境由 `admin/src/mock` 兜底，用 `USE_BUSINESS_MOCK=false` 可关闭
+- 论坛动态、C 端用户、广告推广、AI 模型与 Skills 均已对接后端真实接口；只有「用户行为分析」后端暂无统计接口，由 `admin/src/mock` 兜底
 - 后端需要 MySQL 就绪；数据库没配好时 `dev:server` 会启动失败，此时只跑 `dev:admin` 即可
 
 ## 构建与检查

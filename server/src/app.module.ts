@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AdsModule } from './ads/ads.module';
+import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
 import { TokenAuthGuard } from './auth/guards/token-auth.guard';
 import { AppController } from './app.controller';
@@ -23,6 +24,7 @@ import { UsersModule } from './users/users.module';
     }),
     DatabaseModule,
     AdsModule,
+    AiModule,
     AuthModule,
     CustomersModule,
     ForumModule,

@@ -32,6 +32,8 @@ const PAGES = [
   { path: '/analytics/behavior', title: '用户行为分析', shot: '06-behavior' },
   { path: '/preview/dynamic', title: '动态预览', shot: '07-preview' },
   { path: '/profile', title: '个人信息', shot: '08-profile' },
+  { path: '/ai/models', title: 'AI 模型管理', shot: '09-ai-models' },
+  { path: '/ai/skills', title: 'Skills 管理', shot: '10-ai-skills' },
 ];
 
 const problems = [];
@@ -149,10 +151,13 @@ async function runChecks(browser) {
   await page.goto(`${BASE_URL}/analytics/behavior`, { waitUntil: 'domcontentloaded' });
   await page.locator('.page-header__title').first().waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForTimeout(800);
-  await page.screenshot({ path: path.join(OUT_DIR, '09-dark-behavior.png'), fullPage: true });
+  await page.screenshot({ path: path.join(OUT_DIR, '13-dark-behavior.png'), fullPage: true });
   console.warn('✓ 深色主题渲染正常');
 
-  // 4. 路由级权限：广告运营访问论坛审批应落到 403
+  // 4. 技能创建链路：填表 → 生成 md → 落库 → 回读 → 清理
+  await verifySkillCreation(page);
+
+  // 5. 路由级权限：普通用户访问论坛审批应落到 403
   // 普通用户只有 routeIdGroup=[13]，登录后应落在个人信息页
   await page.evaluate(() => window.localStorage.clear());
   await login(page, 'user', '/profile');
@@ -166,10 +171,69 @@ async function runChecks(browser) {
     problems.push('路由权限未生效：普通用户访问 /forum/approval 没有落到 403');
   } else {
     console.warn('✓ 路由权限 403 生效');
-    await page.screenshot({ path: path.join(OUT_DIR, '10-forbidden.png'), fullPage: true });
+    await page.screenshot({ path: path.join(OUT_DIR, '14-forbidden.png'), fullPage: true });
   }
 
   await context.close();
+}
+
+/**
+ * 覆盖「输入技能名称/描述/指令 → 生成 skill 模板 md → 调用数据仓保存」这条链路。
+ * 用例自带清理，不会在数据库里留下测试数据。
+ */
+async function verifySkillCreation(page) {
+  const skillName = `自动化校验-${Date.now()}`;
+  const instruction = '根据输入的图片生成一段不超过 30 字的中文描述。';
+
+  try {
+    await page.goto(`${BASE_URL}/ai/skills`, { waitUntil: 'domcontentloaded' });
+    await page.locator('.page-header__title').first().waitFor({ state: 'visible', timeout: 15000 });
+    await page.getByRole('button', { name: '新增技能' }).click();
+
+    const dialog = page.locator('.el-dialog');
+    await dialog.getByText('填写内容生成模板').click();
+    await dialog.getByPlaceholder('例如：图片短描述').fill(skillName);
+    await dialog.getByPlaceholder('说明这个技能的适用场景，可留空').fill('自动化验证创建的技能');
+    await dialog.getByPlaceholder(/描述技能要做什么/).fill(instruction);
+    await page.screenshot({ path: path.join(OUT_DIR, '11-skill-create-dialog.png'), fullPage: true });
+
+    await dialog.getByRole('button', { name: '确认保存' }).click();
+
+    // 列表按 id 升序，用关键词把刚创建的记录筛出来
+    await page.getByPlaceholder('搜索技能名称 / 描述').fill(skillName);
+    await page.getByRole('button', { name: '查询' }).click();
+
+    const row = page.locator('.el-table__row', { hasText: skillName }).first();
+    await row.waitFor({ state: 'visible', timeout: 20000 });
+    console.warn('✓ 技能创建成功并出现在列表中');
+
+    // 回读详情，确认写入的是模板 Markdown 而不是空文件
+    await row.getByRole('button', { name: '查看' }).click();
+    const drawer = page.locator('.el-drawer');
+    await drawer.waitFor({ state: 'visible', timeout: 15000 });
+    const markdown = (await drawer.locator('.markdown-preview').textContent()) ?? '';
+    if (!markdown.includes(`# ${skillName}`) || !markdown.includes('## 执行指令')) {
+      problems.push(`技能模板 Markdown 内容不符合预期：${markdown.slice(0, 80)}`);
+    } else {
+      console.warn('✓ 技能模板 Markdown 已落库并可回读');
+    }
+    await page.screenshot({ path: path.join(OUT_DIR, '12-skill-detail.png'), fullPage: true });
+    await drawer.getByRole('button', { name: '关闭', exact: true }).click();
+
+    // 清理测试数据
+    await row.getByRole('button', { name: '删除' }).click();
+    await page.locator('.el-message-box').getByRole('button', { name: '删除' }).click();
+    await page.waitForTimeout(800);
+
+    const remaining = await page.locator('.el-table__row', { hasText: skillName }).count();
+    if (remaining > 0) {
+      problems.push('技能删除后仍出现在列表中');
+    } else {
+      console.warn('✓ 技能删除成功，测试数据已清理');
+    }
+  } catch (error) {
+    await reportPageFailure(page, '技能创建链路', error);
+  }
 }
 
 main().catch((error) => {

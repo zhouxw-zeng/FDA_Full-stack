@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { Delete, Edit, Plus, VideoPause, VideoPlay } from '@element-plus/icons-vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 
-import { createAd, deleteAd, fetchAds, updateAd, updateAdStatus } from '@/api/ad';
+import {
+  createAd,
+  deleteAd,
+  fetchAdPartnerTypes,
+  fetchAds,
+  updateAd,
+  updateAdStatus,
+} from '@/api/ad';
 import { DataTable, PageHeader, SearchPanel, StatusTag, type TableColumn } from '@/components';
 import { useConfirm } from '@/composables/useConfirm';
 import { useTable } from '@/composables/useTable';
-import {
-  AD_PLACEMENT_LABELS,
-  AD_PLACEMENT_OPTIONS,
-  AD_STATUS_OPTIONS,
-} from '@/constants';
-import type { AdCampaign, AdCampaignPayload, AdQuery } from '@/types';
+import { AD_PLACEMENT_LABELS, AD_PLACEMENT_OPTIONS, AD_STATUS_OPTIONS } from '@/constants';
+import type { AdCampaign, AdCampaignPayload, AdPartnerType, AdQuery } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/format';
 
 defineOptions({ name: 'AdvertisingList' });
@@ -24,20 +27,22 @@ const { list, total, loading, query, search, reset, reload, changePage, changePa
   AdQuery
 >({
   fetcher: fetchAds,
-  defaults: { keyword: '', placement: '', status: '' },
+  defaults: { keyword: '', placement: '', status: '', partnerTypeId: '' },
 });
 
 const columns: TableColumn[] = [
-  { prop: 'name', label: '投放计划', minWidth: 220, slot: 'name' },
-  { prop: 'advertiser', label: '广告主', width: 150 },
-  { prop: 'placement', label: '投放位置', width: 110, slot: 'placement' },
-  { prop: 'budget', label: '预算消耗', width: 180, slot: 'budget' },
-  { prop: 'performance', label: '曝光 / 点击', width: 150, slot: 'performance' },
-  { prop: 'period', label: '投放周期', width: 200, slot: 'period' },
-  { prop: 'status', label: '状态', width: 100, slot: 'status', align: 'center' },
-  { prop: 'actions', label: '操作', width: 200, slot: 'actions', fixed: 'right' },
+  { prop: 'name', label: '投放计划', minWidth: 200, slot: 'name' },
+  // 广告主与对接方合并，省出一列给状态
+  { prop: 'advertiser', label: '广告主 / 对接方', width: 160, slot: 'advertiser' },
+  { prop: 'placement', label: '投放位置', width: 95, slot: 'placement' },
+  { prop: 'budget', label: '预算消耗', width: 155, slot: 'budget' },
+  { prop: 'performance', label: '曝光 / 点击', width: 130, slot: 'performance' },
+  { prop: 'period', label: '投放周期', width: 175, slot: 'period' },
+  { prop: 'status', label: '状态', width: 90, slot: 'status', align: 'center' },
+  { prop: 'actions', label: '操作', width: 175, slot: 'actions', fixed: 'right' },
 ];
 
+const partnerTypes = ref<AdPartnerType[]>([]);
 const submitting = ref(false);
 const formRef = ref<FormInstance>();
 
@@ -50,6 +55,7 @@ const dialogState = reactive<{ visible: boolean; mode: 'create' | 'edit'; id: st
 const form = reactive<AdCampaignPayload>({
   name: '',
   advertiser: '',
+  partnerTypeId: undefined,
   placement: 'feed',
   budget: 10_000,
   startAt: '',
@@ -59,16 +65,25 @@ const form = reactive<AdCampaignPayload>({
 const dateRange = ref<[string, string] | null>(null);
 
 const rules: FormRules<AdCampaignPayload> = {
-  name: [{ required: true, message: '请输入投放计划名称', trigger: 'blur' }],
-  advertiser: [{ required: true, message: '请输入广告主名称', trigger: 'blur' }],
+  name: [
+    { required: true, message: '请输入投放计划名称', trigger: 'blur' },
+    { min: 2, max: 200, message: '名称长度为 2-200 个字符', trigger: 'blur' },
+  ],
+  advertiser: [
+    { required: true, message: '请输入广告主名称', trigger: 'blur' },
+    { max: 100, message: '广告主名称不超过 100 个字符', trigger: 'blur' },
+  ],
   budget: [{ required: true, message: '请输入预算金额', trigger: 'blur' }],
 };
 
-const dialogTitle = computed(() => (dialogState.mode === 'create' ? '新建投放计划' : '编辑投放计划'));
+const dialogTitle = computed(() =>
+  dialogState.mode === 'create' ? '新建投放计划' : '编辑投放计划',
+);
 
 function resetForm(): void {
   form.name = '';
   form.advertiser = '';
+  form.partnerTypeId = undefined;
   form.placement = 'feed';
   form.budget = 10_000;
   form.startAt = '';
@@ -88,6 +103,7 @@ function openEdit(row: AdCampaign): void {
   dialogState.id = row.id;
   form.name = row.name;
   form.advertiser = row.advertiser;
+  form.partnerTypeId = row.partnerTypeId ? Number(row.partnerTypeId) : undefined;
   form.placement = row.placement;
   form.budget = row.budget;
   form.startAt = row.startAt;
@@ -118,7 +134,7 @@ async function submitForm(): Promise<void> {
       await createAd({ ...form });
       ElMessage.success('投放计划已创建');
     } else {
-      await updateAd(dialogState.id, { ...form });
+      await updateAd({ ...form, id: dialogState.id });
       ElMessage.success('投放计划已更新');
     }
     dialogState.visible = false;
@@ -142,9 +158,10 @@ async function toggleStatus(row: AdCampaign): Promise<void> {
   if (!accepted) {
     return;
   }
+
   submitting.value = true;
   try {
-    await updateAdStatus(row.id, next);
+    await updateAdStatus({ id: row.id, status: next });
     ElMessage.success(next === 'running' ? '已启用投放' : '已暂停投放');
     await reload();
   } finally {
@@ -161,6 +178,7 @@ async function removeAd(row: AdCampaign): Promise<void> {
   if (!accepted) {
     return;
   }
+
   submitting.value = true;
   try {
     await deleteAd(row.id);
@@ -177,6 +195,11 @@ function ctr(row: AdCampaign): string {
   }
   return `${((row.clicks / row.impressions) * 100).toFixed(2)}%`;
 }
+
+onMounted(async () => {
+  const result = await fetchAdPartnerTypes();
+  partnerTypes.value = result.list;
+});
 </script>
 
 <template>
@@ -192,10 +215,10 @@ function ctr(row: AdCampaign): string {
         v-model="query.keyword"
         placeholder="搜索计划名称 / 广告主"
         clearable
-        style="width: 240px"
+        style="width: 220px"
         @keyup.enter="search"
       />
-      <el-select v-model="query.placement" placeholder="投放位置" clearable style="width: 150px">
+      <el-select v-model="query.placement" placeholder="投放位置" clearable style="width: 140px">
         <el-option
           v-for="option in AD_PLACEMENT_OPTIONS"
           :key="option.value"
@@ -203,12 +226,25 @@ function ctr(row: AdCampaign): string {
           :value="option.value"
         />
       </el-select>
-      <el-select v-model="query.status" placeholder="投放状态" clearable style="width: 140px">
+      <el-select v-model="query.status" placeholder="投放状态" clearable style="width: 130px">
         <el-option
           v-for="option in AD_STATUS_OPTIONS"
           :key="option.value"
           :label="option.label"
           :value="option.value"
+        />
+      </el-select>
+      <el-select
+        v-model="query.partnerTypeId"
+        placeholder="对接方类型"
+        clearable
+        style="width: 150px"
+      >
+        <el-option
+          v-for="partner in partnerTypes"
+          :key="partner.id"
+          :label="partner.typeName"
+          :value="Number(partner.id)"
         />
       </el-select>
     </SearchPanel>
@@ -219,7 +255,7 @@ function ctr(row: AdCampaign): string {
       :loading="loading"
       :total="total"
       :page="query.page"
-      :page-size="query.pageSize"
+      :page-size="query.size"
       empty-text="没有符合条件的投放计划"
       @update:page="changePage"
       @update:page-size="changePageSize"
@@ -227,7 +263,14 @@ function ctr(row: AdCampaign): string {
       <template #name="{ row }">
         <div class="cell-plan">
           <strong>{{ (row as AdCampaign).name }}</strong>
-          <small>{{ (row as AdCampaign).id }}</small>
+          <small>#{{ (row as AdCampaign).id }}</small>
+        </div>
+      </template>
+
+      <template #advertiser="{ row }">
+        <div class="cell-advertiser">
+          <strong>{{ (row as AdCampaign).advertiser }}</strong>
+          <small>{{ (row as AdCampaign).partnerTypeName ?? '自有投放' }}</small>
         </div>
       </template>
 
@@ -245,10 +288,14 @@ function ctr(row: AdCampaign): string {
           </span>
           <el-progress
             :percentage="
-              Math.min(
-                100,
-                Math.round(((row as AdCampaign).spent / (row as AdCampaign).budget) * 100),
-              )
+              (row as AdCampaign).budget > 0
+                ? Math.min(
+                    100,
+                    Math.round(
+                      ((row as AdCampaign).spent / (row as AdCampaign).budget) * 100,
+                    ),
+                  )
+                : 0
             "
             :show-text="false"
             :stroke-width="4"
@@ -295,12 +342,22 @@ function ctr(row: AdCampaign): string {
     </DataTable>
 
     <el-dialog v-model="dialogState.visible" :title="dialogTitle" width="560px" destroy-on-close>
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="88px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="92px">
         <el-form-item label="计划名称" prop="name">
-          <el-input v-model="form.name" placeholder="例如：秋季器材促销 1 期" maxlength="40" />
+          <el-input v-model="form.name" placeholder="例如：秋季器材促销 1 期" maxlength="200" />
         </el-form-item>
         <el-form-item label="广告主" prop="advertiser">
-          <el-input v-model="form.advertiser" placeholder="请输入广告主名称" maxlength="30" />
+          <el-input v-model="form.advertiser" placeholder="请输入广告主名称" maxlength="100" />
+        </el-form-item>
+        <el-form-item label="对接方类型" prop="partnerTypeId">
+          <el-select v-model="form.partnerTypeId" clearable placeholder="自有投放可不选" style="width: 100%">
+            <el-option
+              v-for="partner in partnerTypes"
+              :key="partner.id"
+              :label="partner.typeName"
+              :value="Number(partner.id)"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="投放位置" prop="placement">
           <el-select v-model="form.placement" style="width: 100%">
@@ -315,8 +372,8 @@ function ctr(row: AdCampaign): string {
         <el-form-item label="预算金额" prop="budget">
           <el-input-number
             v-model="form.budget"
-            :min="1000"
-            :max="5_000_000"
+            :min="0"
+            :max="99_999_999"
             :step="1000"
             controls-position="right"
             style="width: 100%"
@@ -345,6 +402,21 @@ function ctr(row: AdCampaign): string {
 
 <style scoped lang="scss">
 .cell-plan {
+  display: flex;
+  flex-direction: column;
+
+  strong {
+    color: var(--app-ink);
+    font-weight: 500;
+  }
+
+  small {
+    color: var(--app-ink-3);
+    font-size: 12px;
+  }
+}
+
+.cell-advertiser {
   display: flex;
   flex-direction: column;
 

@@ -10,9 +10,17 @@ export type {
 } from './auth';
 export type { RouteTreeItem } from './route';
 export type {
-  ActivityItem,
+  AiModelConfig,
+  AiModelPayload,
+  AiModelQuery,
+  AiSkill,
+  AiSkillPayload,
+  AiSkillQuery,
+} from './ai';
+export type {
   AdCampaign,
   AdCampaignPayload,
+  AdPartnerType,
   AdPlacement,
   AdQuery,
   AdStatus,
@@ -24,11 +32,12 @@ export type {
   BehaviorSeries,
   Customer,
   CustomerQuery,
-  DashboardOverview,
+  EnabledFlag,
+  ForumChangeLog,
+  ForumChangeLogQuery,
   ForumDynamic,
   ForumDynamicQuery,
-  ForumPost,
-  ForumPostQuery,
+  ForumDynamicType,
   MediaItem,
   MediaKind,
 } from './business';

@@ -4,9 +4,9 @@ import type { PageQuery, PageResult } from '@/types';
 
 interface UseTableOptions<T, Q extends PageQuery> {
   fetcher: (query: Q) => Promise<PageResult<T>>;
-  /** 查询条件初始值，page / pageSize 由 hook 统一管理 */
-  defaults: Omit<Q, 'page' | 'pageSize'>;
-  pageSize?: number;
+  /** 查询条件初始值，page / size 由 hook 统一管理 */
+  defaults: Omit<Q, 'page' | 'size'>;
+  size?: number;
   immediate?: boolean;
 }
 
@@ -15,9 +15,8 @@ interface UseTableOptions<T, Q extends PageQuery> {
  * 各页面只关心 fetcher 与查询条件形状。
  */
 export function useTable<T, Q extends PageQuery = PageQuery>(options: UseTableOptions<T, Q>) {
-  const pageSize = options.pageSize ?? 10;
-  const createQuery = () =>
-    ({ ...options.defaults, page: 1, pageSize }) as unknown as Q;
+  const defaultSize = options.size ?? 10;
+  const createQuery = () => ({ ...options.defaults, page: 1, size: defaultSize }) as unknown as Q;
 
   const list = ref([]) as Ref<T[]>;
   const total = ref(0);
@@ -52,7 +51,7 @@ export function useTable<T, Q extends PageQuery = PageQuery>(options: UseTableOp
   /** 删除最后一条数据时自动回到上一页，避免停在空白页 */
   async function reloadAfterRemove(removedCount = 1): Promise<void> {
     const remaining = total.value - removedCount;
-    const maxPage = Math.max(1, Math.ceil(remaining / (query.value.pageSize ?? pageSize)));
+    const maxPage = Math.max(1, Math.ceil(remaining / (query.value.size ?? defaultSize)));
     if ((query.value.page ?? 1) > maxPage) {
       query.value.page = maxPage;
     }
@@ -65,7 +64,7 @@ export function useTable<T, Q extends PageQuery = PageQuery>(options: UseTableOp
   }
 
   async function changePageSize(size: number): Promise<void> {
-    query.value.pageSize = size;
+    query.value.size = size;
     query.value.page = 1;
     await load();
   }

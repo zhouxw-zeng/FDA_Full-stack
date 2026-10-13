@@ -2,18 +2,18 @@
 import { computed, onMounted, ref } from 'vue';
 import { ChatDotRound, Refresh, Share, Star } from '@element-plus/icons-vue';
 
-import { fetchForumDynamics } from '@/api/forum';
-import { MediaPreviewDialog, MediaThumb, PageHeader, UserAvatar } from '@/components';
-import { TOPIC_OPTIONS } from '@/constants';
-import type { ForumDynamic } from '@/types';
+import { fetchForumDynamicTypes, fetchForumDynamics } from '@/api/forum';
+import { MediaPreviewDialog, MediaThumb, PageHeader, StatusTag, UserAvatar } from '@/components';
+import type { ForumDynamic, ForumDynamicType } from '@/types';
 import { formatCompactNumber, formatRelative } from '@/utils/format';
 
 defineOptions({ name: 'PreviewDynamic' });
 
 const loading = ref(true);
 const dynamics = ref<ForumDynamic[]>([]);
+const types = ref<ForumDynamicType[]>([]);
 const activeId = ref('');
-const topic = ref('');
+const typeId = ref<number | ''>('');
 
 const previewState = ref<{ visible: boolean; index: number }>({ visible: false, index: 0 });
 
@@ -26,8 +26,8 @@ async function load(): Promise<void> {
   try {
     const result = await fetchForumDynamics({
       page: 1,
-      pageSize: 12,
-      topic: topic.value,
+      size: 12,
+      typeId: typeId.value,
       keyword: '',
       pinned: '',
     });
@@ -45,19 +45,23 @@ function openPreview(index: number): void {
   previewState.value.visible = true;
 }
 
-onMounted(load);
+onMounted(async () => {
+  const typePage = await fetchForumDynamicTypes();
+  types.value = typePage.list;
+  await load();
+});
 </script>
 
 <template>
   <div class="preview">
     <PageHeader title="动态预览" description="按 C 端展示效果核对动态内容与素材排布">
       <template #actions>
-        <el-select v-model="topic" placeholder="全部话题" clearable style="width: 150px" @change="load">
+        <el-select v-model="typeId" placeholder="全部类型" clearable style="width: 150px" @change="load">
           <el-option
-            v-for="option in TOPIC_OPTIONS"
-            :key="option.value"
-            :label="option.label"
-            :value="option.value"
+            v-for="type in types"
+            :key="type.typeId"
+            :label="type.typeName"
+            :value="type.typeId"
           />
         </el-select>
         <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
@@ -97,7 +101,13 @@ onMounted(load);
 
           <div class="phone__screen">
             <template v-if="active">
-              <div class="phone__topic"># {{ active.topic }}</div>
+              <div class="phone__topic">
+                <span># {{ active.topic }}</span>
+                <span class="phone__flags">
+                  <StatusTag kind="audit" :value="active.auditStatus" />
+                  <StatusTag kind="forumEnabled" :value="active.enabled" />
+                </span>
+              </div>
 
               <article class="phone__post">
                 <header class="phone__author">
@@ -309,10 +319,22 @@ onMounted(load);
   }
 
   &__topic {
+    display: flex;
+    gap: 8px;
+    align-items: center;
     margin-bottom: 8px;
-    color: var(--app-primary);
-    font-size: 12px;
-    font-weight: 600;
+
+    span:first-child {
+      color: var(--app-primary);
+      font-size: 12px;
+      font-weight: 600;
+    }
+  }
+
+  &__flags {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: auto;
   }
 
   &__post {

@@ -12,6 +12,15 @@
 - `forum_dynamic_types`: 动态类型表
 - `forum_dynamics`: 动态表
 - `forum_change_logs`: 动态变更记录表
+- `ad_partner_types`: 广告对接方类型表
+- `ad_campaigns`: 广告计划表
+- `ai_model_configs`: AI 模型配置表
+- `ai_skills`: AI 技能 Markdown 文件表
+- `ai_model_skills`: AI 模型技能关联表
+- `ai_chat_sessions`: AI 聊天会话表
+- `ai_chat_messages`: AI 聊天消息表
+- `ai_usage_records`: AI 用量记录表
+- `ai_quota_accounts`: AI 额度账户表
 
 表结构 SQL：
 
@@ -22,8 +31,11 @@
 - `sql/forum_dynamics.sql`
 - `sql/forum_dynamic_types.sql`
 - `sql/forum_change_logs.sql`
-- `sql/ad_partner_types.sql`（待确认后执行）
-- `sql/ad_campaigns.sql`（待确认后执行）
+- `sql/ad_partner_types.sql`
+- `sql/ad_campaigns.sql`
+- `sql/ai_module.sql`
+- `sql/ai_skills.sql`
+- `sql/ai_skills_file.sql`
 
 本地 `server/.env` 已配置为：
 
@@ -284,7 +296,99 @@ Authorization: Bearer <accessToken>
 
 广告计划示例覆盖自有广告和上述主要第三方厂商，可直接用于查询、编辑和状态流转联调。
 
-## 9. 动态模块接口
+## 9. AI 模块接口
+
+所有接口都需要 Bearer accessToken。
+
+模型管理：
+
+| 方法 | 地址 | 说明 |
+| --- | --- | --- |
+| POST | `/api/ai/models` | 创建模型配置 |
+| GET | `/api/ai/models` | 分页查询模型配置 |
+| GET | `/api/ai/models/:id` | 查询模型配置 |
+| PUT | `/api/ai/models` | 更新模型配置，ID 从 Body 传入 |
+| DELETE | `/api/ai/models/:id` | 删除模型配置 |
+
+模型配置支持：
+
+- `systemPrompt`：模型级 System Prompt
+- `skillIds`：选中的通用技能 ID 组
+
+技能管理：
+
+| 方法 | 地址 | 说明 |
+| --- | --- | --- |
+| POST | `/api/ai/skills` | 创建技能 |
+| GET | `/api/ai/skills` | 分页查询技能 |
+| GET | `/api/ai/skills/:id` | 查询技能详情 |
+| PUT | `/api/ai/skills` | 更新技能，ID 从 Body 传入 |
+| DELETE | `/api/ai/skills/:id` | 删除技能 |
+
+技能字段：
+
+- 技能名称
+- 描述
+- 创建时间
+- Markdown 文件
+
+创建和更新技能使用 `multipart/form-data`，文件字段名为 `file`，仅支持 `.md` 文件。Markdown 文件内容会保存在数据库中，并在模型调用时作为技能提示词使用。
+
+聊天与概述：
+
+| 方法 | 地址 | 说明 |
+| --- | --- | --- |
+| POST | `/api/ai/chat` | 发送聊天消息 |
+| GET | `/api/ai/chat/sessions` | 查询会话 |
+| GET | `/api/ai/chat/sessions/:sessionId/messages` | 查询会话消息 |
+| POST | `/api/ai/chat/summary` | 上传文本附件生成概述 |
+| POST | `/api/ai/chat/one-shot` | 一次性 AI 问答，不读取历史，可上传图片 |
+
+用量与额度：
+
+| 方法 | 地址 | 说明 |
+| --- | --- | --- |
+| GET | `/api/ai/usage/records` | 分页查询调用记录 |
+| GET | `/api/ai/usage/analysis` | 统计用量趋势 |
+| GET | `/api/ai/quota` | 查询额度账户 |
+| PUT | `/api/ai/quota` | 更新额度配置，ID 从 Body 传入 |
+| POST | `/api/ai/quota/refresh` | 刷新额度 |
+
+当前预置 DeepSeek：
+
+- `deepseek-chat`
+- `deepseek-reasoner`
+- Base URL：`https://api.deepseek.com/v1`
+
+API Key 默认留空，可通过模型配置接口维护，也可以使用环境变量：
+
+```dotenv
+DEEPSEEK_API_KEY=
+```
+
+附件概述接口仅解析文本类附件，支持 `txt、md、json、csv、log、xml、yaml` 和 `text/*` 文件。通用调用使用 OpenAI Chat Completions 兼容格式，新增其他厂商时只需配置 `baseUrl + modelName + apiKey`。
+
+调用模型时，系统会按以下顺序拼接 System Prompt：
+
+1. 模型配置中的 `systemPrompt`
+2. 模型选中的启用状态技能的 Markdown 文件内容
+
+一次性问答示例：
+
+```http
+POST /api/ai/chat/one-shot
+Content-Type: multipart/form-data
+```
+
+表单字段：
+
+- `files`：图片文件，可上传多张
+- `prompt`：可选提示词
+- `modelConfigId`：可选模型配置 ID
+
+一次性接口不会创建聊天会话，也不会读取历史消息，只按当前图片、提示词、模型 systemPrompt 和选中技能返回一段文本。
+
+## 10. 动态模块接口
 
 所有接口都需要 Bearer accessToken，路径与前端 mock 保持一致。
 
@@ -376,7 +480,7 @@ Authorization: Bearer <accessToken>
 
 审批、下架、启用和编辑动态时会自动写入变更记录。
 
-## 10. 路由管理接口
+## 11. 路由管理接口
 
 所有接口都需要 Bearer accessToken。
 
@@ -404,6 +508,6 @@ Authorization: Bearer <accessToken>
 }
 ```
 
-## 11. Nginx
+## 12. Nginx
 
 Windows 版 Nginx 示例见 `deploy/nginx.conf.example`。开发阶段可以直接使用 NestJS 和 Vite 的开发服务器，不需要先配置 Nginx。
