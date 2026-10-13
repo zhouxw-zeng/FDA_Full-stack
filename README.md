@@ -49,3 +49,4 @@ npm run smoke:admin      # 端到端冒烟（需先启动 dev:admin）
 ```
 
 前端构建配置在 `admin/webpack.config.cjs`，代理与端口在 `admin/.env` 中维护。
+"# FDA_Full-stack" 
