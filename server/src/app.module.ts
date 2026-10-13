@@ -12,6 +12,7 @@ import { CustomersModule } from './customers/customers.module';
 import { ForumModule } from './forum/forum.module';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { DatabaseModule } from './database/database.module';
+import { FilesModule } from './files/files.module';
 import { RolesModule } from './roles/roles.module';
 import { RoutesModule } from './routes/routes.module';
 import { UsersModule } from './users/users.module';
@@ -28,6 +29,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     CustomersModule,
     ForumModule,
+    FilesModule,
     RolesModule,
     RoutesModule,
     UsersModule,

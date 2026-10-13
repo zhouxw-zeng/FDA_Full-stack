@@ -208,6 +208,13 @@ module.exports = async (_cliEnv, argv) => {
             process.env.PROXY_TARGET || appEnv.PROXY_TARGET || `http://localhost:${backendPort}`,
           changeOrigin: true,
         },
+        {
+          // 本地文件上传接口返回的地址，需要同源代理才能直接预览 / 下载
+          context: ['/local-files'],
+          target:
+            process.env.PROXY_TARGET || appEnv.PROXY_TARGET || `http://localhost:${backendPort}`,
+          changeOrigin: true,
+        },
       ],
       client: {
         overlay: {

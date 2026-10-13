@@ -16,6 +16,9 @@ export class AiModelConfigResponseDto {
   @ApiProperty({ example: false, description: '是否已配置 API Key' })
   hasApiKey: boolean;
 
+  @ApiProperty({ example: '', description: 'API Key，仅管理员接口返回' })
+  apiKey: string;
+
   @ApiProperty({ example: 'deepseek-chat' })
   modelName: string;
 

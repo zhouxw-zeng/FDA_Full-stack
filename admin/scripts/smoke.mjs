@@ -217,7 +217,49 @@ async function verifySkillCreation(page) {
     } else {
       console.warn('✓ 技能模板 Markdown 已落库并可回读');
     }
+
+    // 文件地址应由本地文件上传接口返回并展示
+    const fileUrlText = (await drawer.locator('.skill-detail__url').textContent()) ?? '';
+    if (!fileUrlText.includes('/local-files/')) {
+      problems.push(`技能详情未展示本地文件地址：${fileUrlText.slice(0, 80)}`);
+    } else if (!fileUrlText.includes('/skills.md')) {
+      problems.push(`技能文件未按「技能名/skills.md」归档：${fileUrlText.slice(0, 120)}`);
+    } else {
+      console.warn('✓ 技能已按「技能名/skills.md」归档并保存地址');
+    }
+
     await page.screenshot({ path: path.join(OUT_DIR, '12-skill-detail.png'), fullPage: true });
+    await drawer.getByRole('button', { name: '关闭', exact: true }).click();
+
+    // 用 Markdown 编辑器改写内容，提交时应覆盖原文件而不是新增一份
+    const marker = `自动化编辑校验-${Date.now()}`;
+    await row.getByRole('button', { name: '编辑' }).click();
+    const editDialog = page.locator('.el-dialog');
+    const editor = editDialog.locator('.md-editor__input');
+    await editor.waitFor({ state: 'visible', timeout: 15000 });
+    const originalContent = await editor.inputValue();
+    await editor.fill(`${originalContent}\n\n${marker}`);
+    // 等弹窗淡入动画结束再截图，否则会拍到半透明状态
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: path.join(OUT_DIR, '15-skill-editor.png'), fullPage: true });
+    await editDialog.getByRole('button', { name: '确认保存' }).click();
+    await page.waitForTimeout(1000);
+
+    await row.getByRole('button', { name: '查看' }).click();
+    await drawer.waitFor({ state: 'visible', timeout: 15000 });
+    const editedContent = (await drawer.locator('.markdown-preview').textContent()) ?? '';
+    const editedUrl = (await drawer.locator('.skill-detail__url').textContent()) ?? '';
+
+    if (!editedContent.includes(marker)) {
+      problems.push('编辑器修改的内容没有保存成功');
+    } else {
+      console.warn('✓ 编辑器内容已保存');
+    }
+    if (!editedUrl.includes('/skills.md')) {
+      problems.push(`覆盖保存后文件地址发生变化：${editedUrl.slice(0, 120)}`);
+    } else {
+      console.warn('✓ 编辑保存覆盖了原文件（地址未变）');
+    }
     await drawer.getByRole('button', { name: '关闭', exact: true }).click();
 
     // 清理测试数据

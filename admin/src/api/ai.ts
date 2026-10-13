@@ -63,9 +63,16 @@ export function fetchAiSkillDetail(id: string): Promise<AiSkill> {
 
 function toSkillFormData(payload: AiSkillPayload): FormData {
   const form = new FormData();
+  // 更新接口要求 id 从 Body 传入，漏掉会被校验直接拒绝
+  if (payload.id) {
+    form.append('id', payload.id);
+  }
   form.append('skillName', payload.skillName);
   if (payload.description) {
     form.append('description', payload.description);
+  }
+  if (payload.fileUrl) {
+    form.append('fileUrl', payload.fileUrl);
   }
   if (payload.file) {
     form.append('file', payload.file);

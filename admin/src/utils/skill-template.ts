@@ -28,6 +28,22 @@ export function toSkillFileName(skillName: string): string {
   return `${safe || 'skill'}.md`;
 }
 
+/**
+ * 技能名 → 目录名。
+ * 每个技能独占一个目录，目录内固定放 skills.md，方便按名称直接定位与调用。
+ */
+export function toSkillDirectory(skillName: string): string {
+  const safe = skillName
+    .trim()
+    .replace(/[/\\]/g, '-')
+    .replace(/[<>:"|?*]/g, '')
+    .replace(/\.+$/g, '');
+  return safe || 'skill';
+}
+
+/** 技能文件在文件仓中的固定文件名 */
+export const SKILL_FILE_NAME = 'skills.md';
+
 /** 把生成的 Markdown 包装成可上传的 File */
 export function createMarkdownFile(fileName: string, content: string): File {
   return new File([content], fileName, { type: 'text/markdown' });

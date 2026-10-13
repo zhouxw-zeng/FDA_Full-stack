@@ -126,7 +126,7 @@ async function openEdit(row: AiModelConfig): Promise<void> {
   form.providerCode = detail.providerCode;
   form.providerName = detail.providerName;
   form.baseUrl = detail.baseUrl;
-  form.apiKey = '';
+  form.apiKey = detail.apiKey ?? '';
   form.modelName = detail.modelName;
   form.displayName = detail.displayName;
   form.status = detail.status;
@@ -321,11 +321,7 @@ onMounted(async () => {
             type="password"
             show-password
             clearable
-            :placeholder="
-              dialogState.mode === 'edit' && !form.apiKey
-                ? '留空表示保留已保存的 Key'
-                : '请输入服务商提供的 API Key'
-            "
+            placeholder="请输入服务商提供的 API Key"
           />
         </el-form-item>
 

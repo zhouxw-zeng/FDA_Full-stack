@@ -68,6 +68,9 @@ export class AiModelConfig {
   @Column({ name: 'system_prompt', type: 'text', nullable: true })
   systemPrompt: string | null;
 
+  @Column({ name: 'skill_ids', type: 'json' })
+  skillIds: number[];
+
   @ManyToMany(() => AiSkill, (skill) => skill.models)
   @JoinTable({
     name: 'ai_model_skills',

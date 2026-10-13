@@ -22,6 +22,9 @@ export class AiSkill {
   @Column({ name: 'file_content', type: 'longtext' })
   fileContent: string;
 
+  @Column({ name: 'file_url', type: 'varchar', length: 500, nullable: true })
+  fileUrl: string | null;
+
   @Column({ type: 'varchar', length: 500, nullable: true })
   description: string | null;
 

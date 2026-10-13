@@ -29,6 +29,7 @@ export class AiModelsService {
     }
 
     const model = this.modelsRepository.create(configData);
+    model.skillIds = skillIds ?? [];
     model.skills = await this.getSkillsByIds(skillIds);
     return this.toResponse(await this.modelsRepository.save(model));
   }
@@ -90,6 +91,7 @@ export class AiModelsService {
 
     Object.assign(model, changes);
     if (skillIds !== undefined) {
+      model.skillIds = skillIds;
       model.skills = await this.getSkillsByIds(skillIds);
     }
     return this.toResponse(await this.modelsRepository.save(model));
@@ -202,6 +204,7 @@ export class AiModelsService {
       providerCode: model.providerCode,
       providerName: model.providerName,
       baseUrl: model.baseUrl,
+      apiKey: model.apiKey ?? '',
       hasApiKey: Boolean(model.apiKey),
       modelName: model.modelName,
       displayName: model.displayName,
@@ -212,7 +215,7 @@ export class AiModelsService {
       timeoutMs: model.timeoutMs,
       extraConfig: model.extraConfig,
       systemPrompt: model.systemPrompt,
-      skillIds: (model.skills ?? []).map((skill) => Number(skill.id)),
+      skillIds: model.skillIds ?? [],
       skills: (model.skills ?? []).map((skill) => ({
         id: skill.id,
         skillName: skill.skillName,

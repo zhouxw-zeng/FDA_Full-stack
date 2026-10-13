@@ -9,6 +9,8 @@ export interface AiSkill {
   fileName: string;
   /** Markdown 正文，保存在后端 ai_skills.file_content */
   fileContent: string;
+  /** 本地文件上传接口返回的地址，保存在后端 ai_skills.file_url */
+  fileUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,6 +23,8 @@ export interface AiSkillPayload {
   id?: string;
   skillName: string;
   description?: string;
+  /** 本地文件上传接口返回的地址；传地址时后端按地址回读文件内容 */
+  fileUrl?: string;
   file?: File;
 }
 
@@ -31,6 +35,7 @@ export interface AiModelConfig {
   providerName: string;
   baseUrl: string;
   /** 后端只返回是否已配置 API Key，不回传明文 */
+  apiKey: string| null;
   hasApiKey: boolean;
   modelName: string;
   displayName: string;

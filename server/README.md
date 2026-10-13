@@ -36,6 +36,7 @@
 - `sql/ai_module.sql`
 - `sql/ai_skills.sql`
 - `sql/ai_skills_file.sql`
+- `sql/ai_model_skill_ids.sql`
 
 本地 `server/.env` 已配置为：
 
@@ -47,6 +48,9 @@ DB_PASSWORD=你的数据库密码
 DB_DATABASE=mysqldb
 DB_SYNCHRONIZE=false
 DB_TIMEZONE=+08:00
+
+LOCAL_FILE_ROOT=E:\ZXW\local_file
+LOCAL_FILE_URL_PREFIX=/local-files
 ```
 
 生产环境不要开启 TypeORM 自动同步，表结构变更应通过 SQL 或 migration 管理。
@@ -314,6 +318,9 @@ Authorization: Bearer <accessToken>
 
 - `systemPrompt`：模型级 System Prompt
 - `skillIds`：选中的通用技能 ID 组
+- `apiKey`：模型接口密钥
+
+模型查询接口会返回 `apiKey`、`hasApiKey` 和 `skillIds`。`apiKey` 属于敏感字段，请只在受 Token 保护的后台管理接口中使用，不要在前端日志或公开页面暴露。
 
 技能管理：
 
@@ -388,7 +395,55 @@ Content-Type: multipart/form-data
 
 一次性接口不会创建聊天会话，也不会读取历史消息，只按当前图片、提示词、模型 systemPrompt 和选中技能返回一段文本。
 
-## 10. 动态模块接口
+## 10. 本地文件上传
+
+所有接口都需要 Bearer accessToken。
+
+| 方法 | 地址 | 说明 |
+| --- | --- | --- |
+| POST | `/api/files/upload` | 上传本地文件 |
+
+请求类型：`multipart/form-data`
+
+参数：
+
+- `file`：必填，上传文件
+- `fileName`：可选，保存文件名
+- `storageAddress`：可选，相对子地址
+
+实际存储路径规则：
+
+```text
+LOCAL_FILE_ROOT/文件类型/YYYY-MM-DD/storageAddress/文件名
+```
+
+文件类型目录：
+
+- `image`
+- `video`
+- `audio`
+- `document`
+- `archive`
+- `other`
+
+接口会自动创建缺失目录。如果同名文件已存在，会自动追加 `-1`、`-2` 等序号，不覆盖原文件。
+
+返回示例：
+
+```json
+{
+  "fileName": "demo.md",
+  "fileType": "document",
+  "uploadDate": "2026-10-13",
+  "storageAddress": "E:\\ZXW\\local_file\\document\\2026-10-13\\manual\\demo.md",
+  "relativePath": "document\\2026-10-13\\manual\\demo.md",
+  "url": "/local-files/document/2026-10-13/manual/demo.md"
+}
+```
+
+上传目录通过 `/local-files/` 提供静态访问。
+
+## 11. 动态模块接口
 
 所有接口都需要 Bearer accessToken，路径与前端 mock 保持一致。
 
@@ -480,7 +535,7 @@ Content-Type: multipart/form-data
 
 审批、下架、启用和编辑动态时会自动写入变更记录。
 
-## 11. 路由管理接口
+## 12. 路由管理接口
 
 所有接口都需要 Bearer accessToken。
 
@@ -508,6 +563,6 @@ Content-Type: multipart/form-data
 }
 ```
 
-## 12. Nginx
+## 13. Nginx
 
 Windows 版 Nginx 示例见 `deploy/nginx.conf.example`。开发阶段可以直接使用 NestJS 和 Vite 的开发服务器，不需要先配置 Nginx。

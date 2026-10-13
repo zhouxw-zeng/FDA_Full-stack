@@ -12,6 +12,7 @@
 - Node.js >= 20
 - 前端用 pnpm，后端用 npm
 - 后端需要本地 MySQL 8.0，连接配置见 `server/.env` 与 `server/README.md`
+- 本地文件上传依赖 `server/.env` 的 `LOCAL_FILE_ROOT`（默认 `E:\ZXW\local_file`），请确保该目录可写
 
 ## 一次性安装依赖
 

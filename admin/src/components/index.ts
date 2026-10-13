@@ -4,6 +4,7 @@ export { default as DataTable } from './DataTable.vue';
 export { default as EmptyState } from './EmptyState.vue';
 export { default as MediaPreviewDialog } from './MediaPreviewDialog.vue';
 export { default as MediaThumb } from './MediaThumb.vue';
+export { default as MarkdownEditor } from './MarkdownEditor.vue';
 export { default as PageHeader } from './PageHeader.vue';
 export { default as SearchPanel } from './SearchPanel.vue';
 export { default as StatCard } from './StatCard.vue';

@@ -9,6 +9,7 @@ export type {
   UpdatePasswordPayload,
 } from './auth';
 export type { RouteTreeItem } from './route';
+export type { UploadedFileInfo } from './files';
 export type {
   AiModelConfig,
   AiModelPayload,

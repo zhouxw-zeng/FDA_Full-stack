@@ -4,6 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { createPaginationResult, resolvePagination } from '../common/pagination/pagination';
@@ -21,18 +24,32 @@ export interface UploadedMarkdownFile {
 
 @Injectable()
 export class AiSkillsService {
+  private readonly localFileRoot: string;
+  private readonly localFileUrlPrefix: string;
+
   constructor(
     @InjectRepository(AiSkill)
     private readonly skillsRepository: Repository<AiSkill>,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.localFileRoot = path.resolve(
+      this.configService.get<string>('LOCAL_FILE_ROOT', 'E:\\ZXW\\local_file'),
+    );
+    this.localFileUrlPrefix =
+      this.configService.get<string>('LOCAL_FILE_URL_PREFIX', '/local-files').replace(/\/+$/, '') ||
+      '/local-files';
+  }
 
   async create(createAiSkillDto: CreateAiSkillDto, file?: UploadedMarkdownFile) {
     await this.ensureUnique(createAiSkillDto.skillName);
-    const markdown = this.readMarkdownFile(file);
+    const markdown = await this.resolveMarkdown(file, createAiSkillDto.fileUrl);
+
     const skill = this.skillsRepository.create({
-      ...createAiSkillDto,
+      skillName: createAiSkillDto.skillName,
+      description: createAiSkillDto.description ?? null,
       fileName: markdown.fileName,
       fileContent: markdown.fileContent,
+      fileUrl: createAiSkillDto.fileUrl ?? null,
       status: 0,
     });
 
@@ -69,16 +86,23 @@ export class AiSkillsService {
   }
 
   async update(updateAiSkillDto: UpdateAiSkillDto, file?: UploadedMarkdownFile) {
-    const { id, ...changes } = updateAiSkillDto;
+    const { id, skillName, description, fileUrl } = updateAiSkillDto;
     const skill = await this.getSkillOrThrow(id);
 
-    if (changes.skillName) {
-      await this.ensureUnique(changes.skillName, id);
+    if (skillName) {
+      await this.ensureUnique(skillName, id);
+      skill.skillName = skillName;
+    }
+    if (description !== undefined) {
+      skill.description = description ?? null;
+    }
+    if (fileUrl !== undefined) {
+      skill.fileUrl = fileUrl;
     }
 
-    Object.assign(skill, changes);
-    if (file) {
-      const markdown = this.readMarkdownFile(file);
+    // 重新上传文件或换了文件地址时，同步刷新文件信息与正文
+    if (file || fileUrl) {
+      const markdown = await this.resolveMarkdown(file, fileUrl);
       skill.fileName = markdown.fileName;
       skill.fileContent = markdown.fileContent;
     }
@@ -106,14 +130,28 @@ export class AiSkillsService {
     }
   }
 
-  private readMarkdownFile(file?: UploadedMarkdownFile): {
+  /**
+   * 技能正文的两个来源：
+   * 1. 直接上传 Markdown 文件（兼容原有调用）
+   * 2. 传入本地上传接口返回的地址，由服务端按地址回读文件内容
+   */
+  private async resolveMarkdown(
+    file?: UploadedMarkdownFile,
+    fileUrl?: string,
+  ): Promise<{ fileName: string; fileContent: string }> {
+    if (file) {
+      return this.readUploadedMarkdown(file);
+    }
+    if (fileUrl) {
+      return this.readMarkdownFromLocalFile(fileUrl);
+    }
+    throw new BadRequestException('请上传 Markdown 技能文件，或提供本地文件上传接口返回的地址');
+  }
+
+  private readUploadedMarkdown(file: UploadedMarkdownFile): {
     fileName: string;
     fileContent: string;
   } {
-    if (!file) {
-      throw new BadRequestException('请上传 Markdown 技能文件');
-    }
-
     if (!file.originalname.toLowerCase().endsWith('.md')) {
       throw new BadRequestException('技能文件必须是 .md 文件');
     }
@@ -125,6 +163,50 @@ export class AiSkillsService {
 
     return {
       fileName: file.originalname,
+      fileContent,
+    };
+  }
+
+  private async readMarkdownFromLocalFile(
+    fileUrl: string,
+  ): Promise<{ fileName: string; fileContent: string }> {
+    const prefix = `${this.localFileUrlPrefix}/`;
+    if (!fileUrl.startsWith(prefix)) {
+      throw new BadRequestException(
+        `fileUrl 必须是本地文件上传接口返回的地址（以 ${prefix} 开头）`,
+      );
+    }
+
+    let relativePath: string;
+    try {
+      relativePath = decodeURIComponent(fileUrl.slice(prefix.length));
+    } catch {
+      throw new BadRequestException('fileUrl 格式不正确');
+    }
+
+    if (!relativePath.toLowerCase().endsWith('.md')) {
+      throw new BadRequestException('技能文件必须是 .md 文件');
+    }
+
+    const targetPath = path.resolve(this.localFileRoot, relativePath);
+    const relativeToRoot = path.relative(this.localFileRoot, targetPath);
+    if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) {
+      throw new BadRequestException('fileUrl 不能超出本地文件根目录');
+    }
+
+    let fileContent: string;
+    try {
+      fileContent = (await fs.readFile(targetPath, 'utf8')).trim();
+    } catch {
+      throw new NotFoundException('未找到 fileUrl 对应的本地文件，请重新上传');
+    }
+
+    if (!fileContent) {
+      throw new BadRequestException('Markdown 技能文件内容不能为空');
+    }
+
+    return {
+      fileName: path.basename(targetPath),
       fileContent,
     };
   }
@@ -146,6 +228,7 @@ export class AiSkillsService {
       description: skill.description,
       fileName: skill.fileName,
       fileContent: skill.fileContent,
+      fileUrl: skill.fileUrl ?? null,
       createdAt: skill.createdAt,
       updatedAt: skill.updatedAt,
     };

@@ -54,7 +54,8 @@ pnpm dev
 - 用户行为分析：活跃趋势、行为漏斗、设备 / 地域 / 时段分布（支持 7 / 14 / 30 天切换）
 - 动态预览：直接读取真实动态与动态类型，支持素材大图预览
 - AI 模型管理：接入信息与生成参数维护、关联 Skills、启用与默认模型切换
-- Skills 管理：可直接上传 `.md` 文件，也可填写技能名称 / 描述 / 指令生成模板后保存；支持查看、下载与替换文件
+- Skills 管理：可直接上传 `.md` 文件，也可填写技能名称 / 描述 / 指令生成模板；文件统一先经本地文件上传接口落盘，技能记录保存返回地址
+- 技能编辑：内置 Markdown 编辑器（工具栏 + 编辑/预览 + 行列统计），提交时用同名文件覆盖原文件
 
 ## 目录结构
 
@@ -86,6 +87,7 @@ src
 | `StatCard` | 指标卡，含趋势与色调 |
 | `MediaThumb` | 确定性媒体缩略图，列表与预览保持一致 |
 | `MediaPreviewDialog` | 图集 / 视频预览，支持键盘左右切换 |
+| `MarkdownEditor` | Markdown 编辑器：格式化工具栏、编辑 / 预览切换、行列统计 |
 | `AuditDialog` | 通过 / 驳回弹窗，驳回原因必填并提供常用原因 |
 | `StatusTag` / `UserAvatar` / `EmptyState` / `PageHeader` | 状态、头像、空态、页头 |
 
@@ -121,10 +123,37 @@ src
 | `customers` | 已对接：列表 / 详情 / 资料审批 / 启停 |
 | `ads` | 已对接：投放计划增删改、状态流转、对接方类型 |
 | `ai` | 已对接：模型配置、Skills（multipart 上传 md）、动态类型级别的技能库 |
+| `files` | 已对接：`POST /files/upload` 本地归档并返回访问地址，Skills 文件走该接口 |
 | `roles` | 后端已实现，前端暂无页面 |
 | 用户行为分析 | 后端未提供统计接口，仍由 `src/mock` 兜底 |
 
 `USE_BUSINESS_MOCK` 目前只影响「用户行为分析」这一个页面（开发默认开启、生产关闭）。
+
+### 本地文件上传
+
+涉及文件的功能统一走 `POST /api/files/upload`（本地文件仓，按「文件类型 / 上传日期 / 自定义子目录」归档），
+拿到返回的 `url` 后再调用业务接口保存地址，而不是把文件二进制塞进业务请求：
+
+| 场景 | 流程 |
+| --- | --- |
+| 技能文件 | 生成或选择 `.md` → 上传到 `/api/files/upload`（`storageAddress=ai/skills/<技能名>`、`fileName=skills.md`）→ 用返回的 `fileUrl` 调 `POST/PUT /ai/skills` |
+| 技能编辑 | 编辑器直接改正文 → 上传同名 `skills.md` 并带 `overwrite=true` 覆盖原文件 → 地址不变，正文刷新 |
+| 技能下载 | 优先按 `fileUrl` 下载，历史无地址的数据回退到内存正文导出 |
+
+技能文件按「一个技能一个目录」归档，目录内固定为 `skills.md`，便于按名称定位与后续调用：
+
+```
+<LOCAL_FILE_ROOT>/document/<上传日期>/ai/skills/<技能名>/skills.md
+```
+
+上传接口默认遇到同名文件会自动追加序号（`skills-1.md`）避免覆盖；
+技能编辑走 `overwrite=true` 直接写回原路径，因此地址保持稳定。
+技能记录里保存的是实际返回地址，调用方始终以 `fileUrl` 为准。
+
+后端会用 `LOCAL_FILE_ROOT`（默认 `E:\ZXW\local_file`）落盘，并通过 `LOCAL_FILE_URL_PREFIX`（默认 `/local-files`）静态托管；
+webpack dev server 已把 `/local-files` 一并代理到后端，开发环境可直接预览与下载。
+
+注意：删除技能目前只删数据库记录，不会级联删除已上传的文件，本地文件仓需要另行清理。
 
 约定的响应结构：
 

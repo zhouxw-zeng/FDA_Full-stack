@@ -1,14 +1,22 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
 
   app.setGlobalPrefix('api');
+  const localFileRoot = configService.get<string>('LOCAL_FILE_ROOT', 'E:\\ZXW\\local_file');
+  const localFileUrlPrefix =
+    configService.get<string>('LOCAL_FILE_URL_PREFIX', '/local-files').replace(/\/+$/, '') ||
+    '/local-files';
+  app.useStaticAssets(localFileRoot, {
+    prefix: `${localFileUrlPrefix}/`,
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,

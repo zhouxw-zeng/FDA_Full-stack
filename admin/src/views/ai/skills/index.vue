@@ -10,15 +10,18 @@ import {
   fetchAiSkills,
   updateAiSkill,
 } from '@/api/ai';
-import { DataTable, PageHeader, SearchPanel, type TableColumn } from '@/components';
+import { uploadFile } from '@/api/files';
+import { DataTable, MarkdownEditor, PageHeader, SearchPanel, type TableColumn } from '@/components';
 import { useConfirm } from '@/composables/useConfirm';
 import { useTable } from '@/composables/useTable';
 import type { AiSkill, AiSkillQuery } from '@/types';
 import { formatDateTime } from '@/utils/format';
 import {
+  SKILL_FILE_NAME,
   buildSkillMarkdown,
   createMarkdownFile,
   downloadMarkdown,
+  toSkillDirectory,
   toSkillFileName,
 } from '@/utils/skill-template';
 
@@ -56,7 +59,7 @@ const dialogState = reactive<{ visible: boolean; mode: 'create' | 'edit'; id: st
 /** create 模式下二选一：直接上传 md，或填表生成模板 */
 const createMode = ref<'upload' | 'template'>('upload');
 
-const form = reactive({ skillName: '', description: '', instruction: '' });
+const form = reactive({ skillName: '', description: '', instruction: '', content: '' });
 const selectedFile = ref<File | null>(null);
 
 const detailState = reactive<{ visible: boolean; target: AiSkill | null }>({
@@ -99,6 +102,7 @@ function resetForm(): void {
   form.skillName = '';
   form.description = '';
   form.instruction = '';
+  form.content = '';
   selectedFile.value = null;
   createMode.value = 'upload';
 }
@@ -111,14 +115,16 @@ function openCreate(): void {
 }
 
 async function openEdit(row: AiSkill): Promise<void> {
+  // 先取到文件正文再打开弹窗，避免异步返回把用户已输入的内容覆盖掉
+  const detail = await fetchAiSkillDetail(row.id);
+
   dialogState.mode = 'edit';
   dialogState.id = row.id;
   resetForm();
-  dialogState.visible = true;
-
-  const detail = await fetchAiSkillDetail(row.id);
   form.skillName = detail.skillName;
   form.description = detail.description ?? '';
+  form.content = detail.fileContent;
+  dialogState.visible = true;
 }
 
 /** el-upload 手动模式：只取原生 File，交给提交阶段统一发送 */
@@ -157,27 +163,47 @@ async function submitForm(): Promise<void> {
   }
 
   let file: File | undefined;
-  if (isUploadMode.value) {
+  let overwrite = false;
+
+  if (dialogState.mode === 'edit') {
+    // 编辑直接用文本编辑器改内容，提交时以同名文件覆盖原文件
+    if (!form.content.trim()) {
+      ElMessage.warning('技能内容不能为空');
+      return;
+    }
+    file = createMarkdownFile(SKILL_FILE_NAME, form.content);
+    overwrite = true;
+  } else if (isUploadMode.value) {
     if (!selectedFile.value) {
       ElMessage.warning('请先选择 .md 技能文件');
       return;
     }
     file = selectedFile.value;
   } else if (isTemplateMode.value) {
-    // 表单内容 → Markdown 模板 → 作为 .md 文件上传，最终落库到 ai_skills.file_content
     file = createMarkdownFile(toSkillFileName(form.skillName), generatedMarkdown.value);
-  } else if (selectedFile.value) {
-    file = selectedFile.value;
   }
-
-  const payload = {
-    skillName: form.skillName.trim(),
-    description: form.description.trim() || undefined,
-    file,
-  };
 
   submitting.value = true;
   try {
+    // 文件统一先经本地文件上传接口落盘，技能记录只保存返回的文件地址
+    let fileUrl: string | undefined;
+    if (file) {
+      const uploaded = await uploadFile(file, {
+        // 每个技能一个目录，目录内固定 skills.md：
+        // document/<上传日期>/ai/skills/<技能名>/skills.md
+        fileName: SKILL_FILE_NAME,
+        storageAddress: `ai/skills/${toSkillDirectory(form.skillName)}`,
+        overwrite,
+      });
+      fileUrl = uploaded.url;
+    }
+
+    const payload = {
+      skillName: form.skillName.trim(),
+      description: form.description.trim() || undefined,
+      fileUrl,
+    };
+
     if (dialogState.mode === 'create') {
       await createAiSkill(payload);
       ElMessage.success('技能已创建');
@@ -198,7 +224,15 @@ async function openDetail(row: AiSkill): Promise<void> {
   detailState.target = await fetchAiSkillDetail(row.id);
 }
 
+/** 优先按本地文件地址下载；历史数据没有地址时回退到内存中的正文 */
 function handleDownload(skill: AiSkill): void {
+  if (skill.fileUrl) {
+    const link = document.createElement('a');
+    link.href = skill.fileUrl;
+    link.download = skill.fileName;
+    link.click();
+    return;
+  }
   downloadMarkdown(skill.fileName, skill.fileContent);
 }
 
@@ -319,7 +353,9 @@ function contentSize(skill: AiSkill): string {
               {{ selectedFile.name }}
               <el-button link type="danger" @click="clearFile">移除</el-button>
             </span>
-            <span v-else class="upload-row__hint">支持 .md，单文件不超过 2MB</span>
+            <span v-else class="upload-row__hint">
+              支持 .md，单文件不超过 2MB；上传后保存返回的文件地址
+            </span>
           </div>
         </el-form-item>
 
@@ -355,23 +391,12 @@ function contentSize(skill: AiSkill): string {
           </el-form-item>
         </template>
 
-        <el-form-item v-if="dialogState.mode === 'edit'" label="替换文件">
-          <div class="upload-row">
-            <el-upload
-              action="#"
-              accept=".md,text/markdown"
-              :auto-upload="false"
-              :show-file-list="false"
-              :on-change="handleFileChange"
-            >
-              <el-button :icon="Upload">选择新的 .md 文件</el-button>
-            </el-upload>
-            <span v-if="selectedFile" class="upload-row__file">
-              {{ selectedFile.name }}
-              <el-button link type="danger" @click="clearFile">移除</el-button>
-            </span>
-            <span v-else class="upload-row__hint">不选择则保留原文件</span>
-          </div>
+        <el-form-item v-if="dialogState.mode === 'edit'" label="技能内容">
+          <MarkdownEditor
+            v-model="form.content"
+            :min-height="300"
+            placeholder="直接编辑 Markdown 内容，保存时会覆盖原文件"
+          />
         </el-form-item>
       </el-form>
 
@@ -390,6 +415,18 @@ function contentSize(skill: AiSkill): string {
           </div>
           <el-tag size="small" effect="plain">{{ detailState.target.fileName }}</el-tag>
         </header>
+
+        <div v-if="detailState.target.fileUrl" class="skill-detail__url">
+          <span class="skill-detail__url-label">文件地址</span>
+          <el-link
+            type="primary"
+            :href="detailState.target.fileUrl"
+            target="_blank"
+            rel="noopener"
+          >
+            {{ detailState.target.fileUrl }}
+          </el-link>
+        </div>
 
         <pre class="markdown-preview markdown-preview--full">{{ detailState.target.fileContent }}</pre>
       </div>
@@ -506,6 +543,25 @@ function contentSize(skill: AiSkill): string {
       color: var(--app-ink-3);
       font-size: 12px;
     }
+  }
+
+  &__url {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 8px 12px;
+    font-size: 12px;
+    background-color: var(--app-surface-2);
+    border-radius: var(--app-radius);
+
+    :deep(.el-link__inner) {
+      word-break: break-all;
+    }
+  }
+
+  &__url-label {
+    flex-shrink: 0;
+    color: var(--app-ink-3);
   }
 }
 </style>
