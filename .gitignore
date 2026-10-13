@@ -13,3 +13,8 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/settings.json
 
+# 本地数据库账号密码等敏感配置，不提交到 Git
+server/.env
+server/.env.*
+!server/.env.example
+
