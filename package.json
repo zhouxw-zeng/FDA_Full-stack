@@ -1,0 +1,21 @@
+{
+  "name": "fde-study-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "全栈 FDE 学习工程：前端管理后台 (admin) + 后端 API (server)",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:admin": "pnpm -C admin dev",
+    "dev:server": "npm --prefix server run start:dev",
+    "build": "npm run build:admin && npm run build:server",
+    "build:admin": "pnpm -C admin build",
+    "build:server": "npm --prefix server run build",
+    "typecheck:admin": "pnpm -C admin typecheck",
+    "lint:admin": "pnpm -C admin lint",
+    "smoke:admin": "pnpm -C admin smoke"
+  }
+}
+

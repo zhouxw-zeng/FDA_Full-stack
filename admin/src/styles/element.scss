@@ -1,0 +1,108 @@
+/* 对 Element Plus 做的整体收口，避免页面里到处写覆盖样式 */
+
+.el-card {
+  --el-card-border-color: var(--app-border);
+  --el-card-border-radius: var(--app-radius-lg);
+}
+
+.el-table {
+  --el-table-border-color: var(--app-border);
+  --el-table-header-bg-color: var(--app-surface-3);
+  --el-table-header-text-color: var(--app-ink-2);
+  --el-table-row-hover-bg-color: var(--app-surface-2);
+  --el-table-bg-color: var(--app-surface);
+  --el-table-tr-bg-color: var(--app-surface);
+  font-size: 13px;
+}
+
+.el-table th.el-table__cell {
+  font-weight: 600;
+}
+
+.el-table .cell {
+  line-height: 1.5;
+}
+
+.el-button {
+  font-weight: 500;
+}
+
+.el-button + .el-button {
+  margin-left: 8px;
+}
+
+.el-dialog {
+  --el-dialog-border-radius: var(--app-radius-lg);
+}
+
+.el-dialog__header {
+  margin-right: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.el-dialog__body {
+  padding-top: 16px;
+}
+
+.el-drawer__header {
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-ink);
+  font-weight: 600;
+}
+
+.el-form-item__label {
+  color: var(--app-ink-2);
+  font-weight: 500;
+}
+
+.el-pagination {
+  --el-pagination-button-bg-color: var(--app-surface-2);
+}
+
+.el-tag {
+  border-radius: var(--app-radius-sm);
+  font-weight: 500;
+}
+
+.el-descriptions__label {
+  color: var(--app-ink-3);
+}
+
+/* 表格内操作区在窄屏时换行，避免挤压 */
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+/* 侧边栏折叠后，子菜单以浮层展示，需要独立的浅色背景 */
+.app-menu-popper {
+  .el-menu--popup {
+    min-width: 160px;
+    padding: 4px;
+    background-color: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+
+    .el-menu-item {
+      height: 34px;
+      color: var(--app-ink-2);
+      border-radius: var(--app-radius-sm);
+
+      &:hover {
+        background-color: var(--app-surface-3);
+      }
+
+      &.is-active {
+        color: var(--app-primary);
+        background-color: var(--app-primary-weak);
+      }
+    }
+  }
+}
+
+

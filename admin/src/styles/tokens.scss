@@ -1,0 +1,131 @@
+/**
+ * 设计令牌：所有颜色、间距、层级都在这里集中定义。
+ * 组件内只使用 CSS 变量 (var(--app-*))，切换主题无需改动组件。
+ */
+
+$sidebar-width: 232px;
+$sidebar-collapsed-width: 64px;
+$navbar-height: 56px;
+
+:root {
+  /* 版面 */
+  --app-sidebar-width: #{$sidebar-width};
+  --app-sidebar-collapsed-width: #{$sidebar-collapsed-width};
+  --app-navbar-height: #{$navbar-height};
+  --app-radius-sm: 4px;
+  --app-radius: 6px;
+  --app-radius-lg: 8px;
+  --app-gap: 16px;
+
+  /* 中性色：略带暖调的灰，避免纯灰发闷 */
+  --app-canvas: #f4f5f7;
+  --app-surface: #ffffff;
+  --app-surface-2: #fafbfc;
+  --app-surface-3: #f0f2f5;
+  --app-border: #e3e6eb;
+  --app-border-strong: #ccd2da;
+  --app-ink: #1b2027;
+  --app-ink-2: #4c5563;
+  --app-ink-3: #7d8797;
+  --app-ink-inverse: #ffffff;
+
+  /* 语义色 */
+  --app-primary: #1f7a6b;
+  --app-primary-hover: #1a6a5d;
+  --app-primary-active: #155a4f;
+  --app-primary-weak: #e7f2f0;
+  --app-accent: #c2681f;
+  --app-success: #2f855a;
+  --app-warning: #b7791f;
+  --app-danger: #c0392b;
+  --app-info: #3a6ea5;
+
+  /* 侧边栏（深色，与内容区形成分区） */
+  --app-sidebar-bg: #14201e;
+  --app-sidebar-bg-hover: #1d2c2a;
+  --app-sidebar-bg-active: #223a36;
+  --app-sidebar-ink: #9fb0ac;
+  --app-sidebar-ink-active: #ffffff;
+  --app-sidebar-border: #24332f;
+
+  /* 层级 */
+  --app-shadow-sm: 0 1px 2px rgba(20, 32, 30, 0.06);
+  --app-shadow-md: 0 6px 20px rgba(20, 32, 30, 0.08);
+  --app-z-navbar: 900;
+  --app-z-drawer: 1000;
+
+  /* Element Plus 主题对齐 */
+  --el-color-primary: var(--app-primary);
+  --el-color-primary-light-3: #4c9d8f;
+  --el-color-primary-light-5: #7bb8ae;
+  --el-color-primary-light-7: #aad4cc;
+  --el-color-primary-light-8: #c4e0db;
+  --el-color-primary-light-9: var(--app-primary-weak);
+  --el-color-primary-dark-2: var(--app-primary-hover);
+  --el-color-success: var(--app-success);
+  --el-color-warning: var(--app-warning);
+  --el-color-danger: var(--app-danger);
+  --el-color-error: var(--app-danger);
+  --el-color-info: var(--app-info);
+  --el-border-radius-base: var(--app-radius);
+  --el-font-size-base: 13px;
+  --el-text-color-primary: var(--app-ink);
+  --el-text-color-regular: var(--app-ink-2);
+  --el-text-color-secondary: var(--app-ink-3);
+  --el-border-color: var(--app-border);
+  --el-border-color-light: var(--app-border);
+  --el-border-color-lighter: var(--app-border);
+  --el-fill-color-blank: var(--app-surface);
+  --el-bg-color: var(--app-surface);
+  --el-bg-color-overlay: var(--app-surface);
+}
+
+html.dark {
+  --app-canvas: #13171b;
+  --app-surface: #1a1f25;
+  --app-surface-2: #1f252c;
+  --app-surface-3: #252c34;
+  --app-border: #2b3340;
+  --app-border-strong: #3a4452;
+  --app-ink: #e7eaf0;
+  --app-ink-2: #b2bac6;
+  --app-ink-3: #828c9b;
+
+  --app-primary: #35a894;
+  --app-primary-hover: #48b9a6;
+  --app-primary-active: #2c8d7c;
+  --app-primary-weak: #1c302d;
+  --app-accent: #d98945;
+  --app-success: #46a97c;
+  --app-warning: #d1a03f;
+  --app-danger: #e06a5c;
+  --app-info: #5b90c9;
+
+  --app-sidebar-bg: #101614;
+  --app-sidebar-bg-hover: #1b2523;
+  --app-sidebar-bg-active: #1d2f2b;
+  --app-sidebar-border: #1e2926;
+
+  --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --app-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  --el-color-primary-light-3: #4cbbaa;
+  --el-color-primary-light-5: #6fccc0;
+  --el-color-primary-light-7: #93dcd3;
+  --el-color-primary-light-8: #a5e3db;
+  --el-color-primary-light-9: var(--app-primary-weak);
+  --el-bg-color: var(--app-surface);
+  --el-bg-color-overlay: var(--app-surface-2);
+  --el-bg-color-page: var(--app-canvas);
+  --el-fill-color-light: var(--app-surface-3);
+  --el-fill-color-lighter: var(--app-surface-2);
+  --el-fill-color-blank: var(--app-surface);
+  --el-text-color-primary: var(--app-ink);
+  --el-text-color-regular: var(--app-ink-2);
+  --el-text-color-secondary: var(--app-ink-3);
+  --el-border-color: var(--app-border);
+  --el-border-color-light: var(--app-border);
+  --el-border-color-lighter: var(--app-border);
+  --el-mask-color: rgba(9, 12, 14, 0.7);
+}
+
