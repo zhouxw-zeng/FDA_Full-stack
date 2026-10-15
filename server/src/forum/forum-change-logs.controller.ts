@@ -15,7 +15,7 @@ import { ForumChangeLogResponseDto } from './dto/forum-change-log-response.dto';
 import { QueryForumChangeLogDto } from './dto/query-forum-change-log.dto';
 import { ForumChangeLogsService } from './forum-change-logs.service';
 
-@ApiTags('forum-change-logs')
+@ApiTags('admin / forum-change-logs')
 @ApiBearerAuth()
 @ApiExtraModels(ForumChangeLogResponseDto, ForumChangeLogPageResponseDto)
 @Controller('forum/change-logs')

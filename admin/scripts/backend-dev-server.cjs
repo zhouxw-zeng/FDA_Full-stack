@@ -10,28 +10,37 @@ function delay(milliseconds) {
   });
 }
 
-function isPortAccepting(port, host) {
+/**
+ * 端口是否可绑定。
+ * 这里刻意用真实 bind 探测而不是连接探测：在带代理 / 沙箱的环境里，
+ * 旧进程已经退出、netstat 也没有监听项，但 connect 仍然可能被拦截层接受，
+ * 从而把空闲端口误判成占用。
+ */
+function canBindPort(port, host) {
   return new Promise((resolve) => {
-    const socket = net.createConnection({ port, host });
+    const server = net.createServer();
+
     const finish = (value) => {
-      socket.removeAllListeners();
-      socket.destroy();
-      resolve(value);
+      server.removeAllListeners();
+      server.close(() => resolve(value));
     };
 
-    socket.setTimeout(500);
-    socket.once('connect', () => finish(true));
-    socket.once('error', () => finish(false));
-    socket.once('timeout', () => finish(false));
+    server.once('error', (error) => {
+      server.removeAllListeners();
+      // 只有 EADDRINUSE 表示端口被占用；地址族不可用等情况不算占用
+      resolve(error.code !== 'EADDRINUSE');
+    });
+    server.once('listening', () => finish(true));
+    server.listen({ port, host, exclusive: true });
   });
 }
 
 async function isPortAvailable(port) {
-  const [ipv4InUse, ipv6InUse] = await Promise.all([
-    isPortAccepting(port, '127.0.0.1'),
-    isPortAccepting(port, '::1'),
-  ]);
-  return !ipv4InUse && !ipv6InUse;
+  const ipv4Available = await canBindPort(port, '0.0.0.0');
+  if (!ipv4Available) {
+    return false;
+  }
+  return canBindPort(port, '::');
 }
 
 function getListeningPids(port) {
@@ -108,31 +117,74 @@ function killProcessTree(pid) {
   }
 }
 
-async function ensurePortAvailable(port, label) {
+/**
+ * 尝试结束占用端口的进程，返回端口是否已释放。
+ * 分多轮重试：进程退出、套接字真正释放都需要时间，且进程可能在重试期间换 PID。
+ */
+async function releasePort(port, label) {
   if (await isPortAvailable(port)) {
-    return;
+    return true;
   }
 
   const pids = getListeningPids(port);
   if (pids.length === 0) {
-    throw new Error(`${label}端口 ${port} 已被占用，但无法定位监听进程`);
+    console.log(`[dev] ${label}端口 ${port} 显示被占用，但未定位到监听进程，等待其释放`);
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await delay(250);
+      if (await isPortAvailable(port)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   console.log(`[dev] ${label}端口 ${port} 被占用，正在结束旧服务：PID ${pids.join(', ')}`);
-  for (const pid of pids) {
-    killProcessTree(pid);
+  const killed = pids.map((pid) => killProcessTree(pid)).some(Boolean);
+  if (!killed) {
+    // 完全没有权限结束旧进程，直接让调用方顺延端口，不再空等
+    return false;
   }
 
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    await delay(200);
+  // 进程已结束，但监听套接字回收需要一点时间，这里给足等待窗口（约 12 秒）
+  for (let attempt = 0; attempt < 48; attempt += 1) {
+    await delay(250);
     if (await isPortAvailable(port)) {
-      return;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * 申请一个可用端口：优先释放并沿用期望端口；
+ * 释放失败（典型情况是旧进程由其它用户 / 管理员权限启动）时顺延到后续端口，
+ * 保证 `pnpm run dev` 不会因为端口问题直接中断。
+ */
+async function resolvePort({ preferredPort, label, fallbackLimit = 10 }) {
+  if (await releasePort(preferredPort, label)) {
+    return preferredPort;
+  }
+
+  for (let offset = 1; offset <= fallbackLimit; offset += 1) {
+    const candidate = preferredPort + offset;
+    if (await isPortAvailable(candidate)) {
+      console.warn(
+        `[dev] ${label}端口 ${preferredPort} 无法释放（可能由其它用户或管理员权限启动），改用 ${candidate}`,
+      );
+      return candidate;
     }
   }
 
   throw new Error(
-    `${label}端口 ${port} 仍被占用。请手动关闭上述 PID，或以管理员权限重新运行 pnpm run dev`,
+    `${label}端口 ${preferredPort} 及后续 ${fallbackLimit} 个候选端口都不可用，请手动清理后重试`,
   );
+}
+
+async function ensurePortAvailable(port, label) {
+  if (!(await releasePort(port, label))) {
+    throw new Error(`${label}端口 ${port} 仍被占用，请手动关闭监听进程后重试`);
+  }
 }
 
 function ensureBackendPortAvailable(port) {
@@ -209,4 +261,6 @@ module.exports = {
   BackendDevServerPlugin,
   ensureBackendPortAvailable,
   ensurePortAvailable,
+  releasePort,
+  resolvePort,
 };

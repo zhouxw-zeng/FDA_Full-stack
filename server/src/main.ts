@@ -39,14 +39,58 @@ async function bootstrap(): Promise<void> {
     .setDescription('NestJS + MySQL API。成功响应统一为 { code: 0, message: "ok", data: ... }。')
     .setVersion('1.0')
     .addBearerAuth()
+    .addTag('public / system', '公共接口 / 系统')
+    .addTag('public / auth', '公共接口 / 认证')
+    .addTag('admin / users', '管理后台 / 用户管理')
+    .addTag('admin / roles', '管理后台 / 角色管理')
+    .addTag('admin / routes', '管理后台 / 路由管理')
+    .addTag('admin / ads', '管理后台 / 广告管理')
+    .addTag('admin / ai-models', '管理后台 / AI 模型')
+    .addTag('admin / ai-skills', '管理后台 / AI Skills')
+    .addTag('admin / ai-chat', '管理后台 / AI 问答')
+    .addTag('admin / ai-usage', '管理后台 / AI 用量')
+    .addTag('admin / ai-quota', '管理后台 / AI 额度')
+    .addTag('admin / files', '管理后台 / 文件管理')
+    .addTag('admin / forum-dynamic-types', '管理后台 / 动态类型')
+    .addTag('admin / forum-change-logs', '管理后台 / 变更记录')
+    .addTag('mobile / customers', '移动端 / C 端用户')
+    .addTag('mobile / auth', '移动端 / 认证')
+    .addTag('mobile / forum', '移动端 / 论坛动态')
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, swaggerDocument);
+  (swaggerDocument as unknown as Record<string, unknown>)['x-tagGroups'] = [
+    {
+      name: '公共接口（public）',
+      tags: ['public / system', 'public / auth'],
+    },
+    {
+      name: '管理后台（admin）',
+      tags: [
+        'admin / users',
+        'admin / roles',
+        'admin / routes',
+        'admin / ads',
+        'admin / ai-models',
+        'admin / ai-skills',
+        'admin / ai-chat',
+        'admin / ai-usage',
+        'admin / ai-quota',
+        'admin / files',
+        'admin / forum-dynamic-types',
+        'admin / forum-change-logs',
+      ],
+    },
+    {
+      name: '移动端（mobile）',
+      tags: ['mobile / auth', 'mobile / customers', 'mobile / forum'],
+    },
+  ];
+  SwaggerModule.setup('swagger/docs', app, swaggerDocument);
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port);
-  console.log(`API is running at http://localhost:${port}/api`);
-  console.log(`Swagger is running at http://localhost:${port}/api/docs`);
+  console.log(`API is running at http://localhost:${port}`);
+  console.log(`Swagger is running at http://localhost:${port}/swagger/docs`);
 }
 
 void bootstrap();

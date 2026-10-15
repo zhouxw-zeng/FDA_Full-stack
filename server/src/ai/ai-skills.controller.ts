@@ -31,7 +31,7 @@ import { CreateAiSkillDto } from './dto/create-ai-skill.dto';
 import { QueryAiSkillDto } from './dto/query-ai-skill.dto';
 import { UpdateAiSkillDto } from './dto/update-ai-skill.dto';
 
-@ApiTags('ai-skills')
+@ApiTags('admin / ai-skills')
 @ApiBearerAuth()
 @ApiExtraModels(AiSkillResponseDto, AiSkillPageResponseDto)
 @Controller('ai/skills')
@@ -47,6 +47,10 @@ export class AiSkillsController {
       properties: {
         skillName: { type: 'string' },
         description: { type: 'string' },
+        fileUrl: {
+          type: 'string',
+          description: '本地文件上传接口返回的地址；传地址时可不重复上传文件',
+        },
         file: { type: 'string', format: 'binary' },
       },
       required: ['skillName', 'file'],
@@ -93,6 +97,7 @@ export class AiSkillsController {
         id: { type: 'string' },
         skillName: { type: 'string' },
         description: { type: 'string' },
+        fileUrl: { type: 'string' },
         file: { type: 'string', format: 'binary' },
       },
       required: ['id'],

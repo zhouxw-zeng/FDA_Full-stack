@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Put, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiExtraModels,
@@ -8,7 +8,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { apiDataResponse } from '../common/swagger/api-data-response';
+import { CurrentMobileCustomer } from '../mobile-auth/decorators/current-mobile-customer.decorator';
+import { MobileAuthGuard } from '../mobile-auth/guards/mobile-auth.guard';
 import { AdminUser } from '../users/entities/admin-user.entity';
 import { CustomersService } from './customers.service';
 import { AuditCustomerDto } from './dto/audit-customer.dto';
@@ -17,7 +20,7 @@ import { CustomerResponseDto } from './dto/customer-response.dto';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { UpdateCustomerStatusDto } from './dto/update-customer-status.dto';
 
-@ApiTags('customers')
+@ApiTags('mobile / customers')
 @ApiBearerAuth()
 @ApiExtraModels(CustomerResponseDto, CustomerPageResponseDto)
 @Controller('customers')
@@ -29,6 +32,14 @@ export class CustomersController {
   @ApiOkResponse(apiDataResponse(CustomerPageResponseDto, { description: '查询成功' }))
   findAll(@Query() queryCustomerDto: QueryCustomerDto) {
     return this.customersService.findAll(queryCustomerDto);
+  }
+
+  @Get('me')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '获取当前 C 端用户信息' })
+  getCurrentCustomer(@CurrentMobileCustomer() customerId: string) {
+    return this.customersService.findOne(customerId);
   }
 
   @Put('audit')

@@ -27,7 +27,7 @@ import { DeleteAdPartnerTypeResponseDto } from './dto/delete-ad-partner-type-res
 import { QueryAdPartnerTypeDto } from './dto/query-ad-partner-type.dto';
 import { UpdateAdPartnerTypeDto } from './dto/update-ad-partner-type.dto';
 
-@ApiTags('ads-partner-types')
+@ApiTags('admin / ads')
 @ApiBearerAuth()
 @ApiExtraModels(
   AdPartnerTypeResponseDto,

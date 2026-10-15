@@ -5,7 +5,7 @@ const { VueLoaderPlugin } = require('vue-loader');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const dotenv = require('dotenv');
-const { BackendDevServerPlugin, ensurePortAvailable } = require('./scripts/backend-dev-server.cjs');
+const { BackendDevServerPlugin, resolvePort } = require('./scripts/backend-dev-server.cjs');
 
 const rootDir = __dirname;
 
@@ -37,20 +37,22 @@ module.exports = async (_cliEnv, argv) => {
   const isProd = mode === 'production';
   const isServe = Boolean(_cliEnv?.WEBPACK_SERVE);
   const appEnv = loadEnv(mode);
-  const backendPort = loadBackendPort();
-  const devPort = Number(process.env.DEV_PORT || appEnv.DEV_PORT) || 5173;
+  const preferredBackendPort = loadBackendPort();
+  const preferredDevPort = Number(process.env.DEV_PORT || appEnv.DEV_PORT) || 5173;
   // 后端已在别的终端 / 容器里运行时，用 BACKEND_AUTOSTART=false 跳过自动拉起与端口清理
   const autoStartBackend =
     !isProd &&
     isServe &&
     (process.env.BACKEND_AUTOSTART ?? appEnv.BACKEND_AUTOSTART ?? 'true') !== 'false';
 
-  // Webpack Dev Server 绑定端口前先清理上次遗留的前后端进程。
-  if (autoStartBackend) {
-    await ensurePortAvailable(backendPort, '后端');
-  }
+  // 启动前先处理端口占用：能结束旧进程就沿用原端口，结束不掉（权限不足等）则顺延到下一个可用端口。
+  let backendPort = preferredBackendPort;
+  let devPort = preferredDevPort;
   if (!isProd && isServe) {
-    await ensurePortAvailable(devPort, '前端');
+    if (autoStartBackend) {
+      backendPort = await resolvePort({ preferredPort: preferredBackendPort, label: '后端' });
+    }
+    devPort = await resolvePort({ preferredPort: preferredDevPort, label: '前端' });
   }
 
   const styleLoader = isProd ? MiniCssExtractPlugin.loader : 'style-loader';
@@ -137,7 +139,7 @@ module.exports = async (_cliEnv, argv) => {
          * `__USE_BUSINESS_MOCK__ ? import(...) : ...` 这样写生产构建才会真正丢掉 mock 分块。
          */
         __APP_TITLE__: JSON.stringify(appEnv.APP_TITLE || '相册视频论坛 · 管理后台'),
-        __API_BASE_URL__: JSON.stringify(appEnv.API_BASE_URL || '/api'),
+        __API_BASE_URL__: JSON.stringify(appEnv.API_BASE_URL || '/'),
         __BASE_PATH__: JSON.stringify(appEnv.BASE_PATH || '/'),
         __USE_BUSINESS_MOCK__: JSON.stringify(appEnv.USE_BUSINESS_MOCK !== 'false'),
         __DEV__: JSON.stringify(!isProd),
@@ -203,7 +205,7 @@ module.exports = async (_cliEnv, argv) => {
       // 前端只请求同源 /api，由 dev server 转发到 NestJS，避免跨域问题
       proxy: [
         {
-          context: ['/api'],
+          context: ['/api', '/swagger'],
           target:
             process.env.PROXY_TARGET || appEnv.PROXY_TARGET || `http://localhost:${backendPort}`,
           changeOrigin: true,

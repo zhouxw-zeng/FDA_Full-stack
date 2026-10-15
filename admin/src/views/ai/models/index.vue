@@ -93,6 +93,13 @@ const dialogTitle = computed(() =>
   dialogState.mode === 'create' ? '新建模型配置' : '编辑模型配置',
 );
 
+const apiKeyPlaceholder = computed(() => {
+  if (dialogState.mode === 'create') {
+    return '请输入服务商提供的 API Key';
+  }
+  return form.apiKey ? '已加载当前 Key，可直接修改' : '当前未配置 Key，可在此填写';
+});
+
 function resetForm(): void {
   form.providerCode = '';
   form.providerName = '';
@@ -321,7 +328,7 @@ onMounted(async () => {
             type="password"
             show-password
             clearable
-            placeholder="请输入服务商提供的 API Key"
+            :placeholder="apiKeyPlaceholder"
           />
         </el-form-item>
 

@@ -27,7 +27,7 @@ import { RoleResponseDto } from './dto/role-response.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { RolesService } from './roles.service';
 
-@ApiTags('roles')
+@ApiTags('admin / roles')
 @ApiBearerAuth()
 @ApiExtraModels(RoleResponseDto, RolePageResponseDto, DeleteRoleResponseDto)
 @Controller('roles')

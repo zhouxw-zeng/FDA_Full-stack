@@ -9,6 +9,7 @@
 - `auth_tokens`: accessToken / refreshToken 登录状态表
 - `admin_routes`: 后台路由表
 - `customer_users`: C 端用户表
+- `customer_auth_tokens`: 移动端登录状态表
 - `forum_dynamic_types`: 动态类型表
 - `forum_dynamics`: 动态表
 - `forum_change_logs`: 动态变更记录表
@@ -28,6 +29,7 @@
 - `sql/auth_tokens.sql`
 - `sql/admin_routes.sql`
 - `sql/customer_users.sql`
+- `sql/mobile_auth.sql`
 - `sql/forum_dynamics.sql`
 - `sql/forum_dynamic_types.sql`
 - `sql/forum_change_logs.sql`
@@ -51,6 +53,7 @@ DB_TIMEZONE=+08:00
 
 LOCAL_FILE_ROOT=E:\ZXW\local_file
 LOCAL_FILE_URL_PREFIX=/local-files
+AUTH_MAX_TOKENS_PER_USER=5
 ```
 
 生产环境不要开启 TypeORM 自动同步，表结构变更应通过 SQL 或 migration 管理。
@@ -63,8 +66,8 @@ npm install
 npm run start:dev
 ```
 
-- API: `http://localhost:3000/api`
-- Swagger: `http://localhost:3000/api/docs`
+- API: `http://localhost:3000`
+- Swagger: `http://localhost:3000/swagger/docs`
 - 健康检查: `http://localhost:3000/api/health`
 
 所有成功响应统一为：
@@ -123,6 +126,19 @@ Authorization: Bearer <accessToken>
 ```
 
 登录成功会返回 `accessToken`、`refreshToken`、有效期和当前用户信息。数据库只保存 token 的 SHA-256 哈希，刷新 token 时会立即注销旧会话记录。
+
+每个 B 端管理员和 C 端用户最多保留的活跃 token 数量由以下环境变量控制：
+
+```dotenv
+AUTH_MAX_TOKENS_PER_USER=5
+```
+
+登录或刷新 token 时：
+
+- 先清理已注销或 refreshToken 已过期的记录。
+- 如果活跃 token 数超过上限，自动删除该用户最早创建的 token。
+
+注销时直接删除当前 refreshToken 对应记录。accessToken 已过期但 refreshToken 仍有效时保留记录用于刷新；refreshToken 已失效时直接删除记录。
 
 注销接口：
 
@@ -252,6 +268,30 @@ Authorization: Bearer <accessToken>
 
 审批被驳回时用户会自动禁用；只有审批状态为 `approved` 的用户才能启用。
 
+移动端登录：
+
+| 方法 | 地址 | 说明 |
+| --- | --- | --- |
+| POST | `/api/mobile-auth/login` | 手机号密码登录，未注册时自动注册 |
+| POST | `/api/mobile-auth/refresh` | 刷新登录状态 |
+| POST | `/api/mobile-auth/logout` | 注销登录状态 |
+| GET | `/api/mobile-auth/profile` | 获取当前用户个人信息 |
+| GET | `/api/mobile-auth/user-info` | 获取当前用户完整信息 |
+| PUT | `/api/mobile-auth/profile` | 更新当前用户个人信息 |
+
+移动端文件：
+
+| 方法 | 地址 | 说明 |
+| --- | --- | --- |
+| GET | `/api/mobile-files/avatars` | 查询默认头像列表 |
+| POST | `/api/mobile-files/upload` | 上传移动端文件 |
+
+登录规则：
+
+- 手机号不存在：自动创建 C 端账号，返回 accessToken、refreshToken、个人基础信息，消息为“用户注册账号成功”。
+- 手机号存在且密码正确：返回新 token 和个人信息，消息为“登录成功”。
+- 手机号存在但密码错误：返回 HTTP `401`，消息为“请确认账号或登录密码。”
+
 ## 8. 广告模块接口
 
 所有接口都需要 Bearer accessToken。
@@ -294,7 +334,7 @@ Authorization: Bearer <accessToken>
 | 快手磁力引擎 | `https://open.kuaishou.com/` |
 | 小红书聚光 | `https://open.xiaohongshu.com/` |
 | 阿里妈妈 | `https://open.alimama.com/` |
-| Google Ads | `https://developers.google.com/google-ads/api/docs/start` |
+| Google Ads | `https://developers.google.com/google-ads/docs/start` |
 | Meta Marketing API | `https://developers.facebook.com/docs/marketing-apis/` |
 | TikTok Ads API | `https://business-api.tiktok.com/portal/docs` |
 

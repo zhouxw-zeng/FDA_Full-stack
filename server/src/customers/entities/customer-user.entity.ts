@@ -25,6 +25,15 @@ export class CustomerUser {
   @Column({ type: 'varchar', length: 20, unique: true })
   phone: string;
 
+  @Column({
+    name: 'password_hash',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+    select: false,
+  })
+  passwordHash: string | null;
+
   @Column({ type: 'varchar', length: 100, nullable: true, unique: true })
   email: string | null;
 

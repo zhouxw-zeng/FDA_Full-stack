@@ -28,7 +28,7 @@ import { QueryAdCampaignDto } from './dto/query-ad-campaign.dto';
 import { UpdateAdCampaignDto } from './dto/update-ad-campaign.dto';
 import { UpdateAdStatusDto } from './dto/update-ad-status.dto';
 
-@ApiTags('ads')
+@ApiTags('admin / ads')
 @ApiBearerAuth()
 @ApiExtraModels(AdCampaignResponseDto, AdCampaignPageResponseDto, DeleteAdCampaignResponseDto)
 @Controller('ads')

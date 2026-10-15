@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AiUsageService } from './ai-usage.service';
 import { QueryAiUsageDto } from './dto/query-ai-usage.dto';
 
-@ApiTags('ai-usage')
+@ApiTags('admin / ai-usage')
 @ApiBearerAuth()
 @Controller('ai/usage')
 export class AiUsageController {

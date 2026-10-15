@@ -5,7 +5,7 @@ import { QueryAiUsageDto } from './dto/query-ai-usage.dto';
 import { RefreshAiQuotaDto } from './dto/refresh-ai-quota.dto';
 import { UpdateAiQuotaDto } from './dto/update-ai-quota.dto';
 
-@ApiTags('ai-quota')
+@ApiTags('admin / ai-quota')
 @ApiBearerAuth()
 @Controller('ai/quota')
 export class AiQuotaController {

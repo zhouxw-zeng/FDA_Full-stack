@@ -1,0 +1,38 @@
+{
+  "easycom": {
+    "autoscan": true
+  },
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/profile/edit",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "家庭动态小助手",
+    "navigationBarBackgroundColor": "#FBF7F2",
+    "backgroundColor": "#FBF7F2",
+    "backgroundTextStyle": "dark"
+  }
+}

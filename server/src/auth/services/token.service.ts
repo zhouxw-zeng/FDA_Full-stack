@@ -1,13 +1,15 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes } from 'node:crypto';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, MoreThan, Repository } from 'typeorm';
 import { AdminUser } from '../../users/entities/admin-user.entity';
 import { AuthToken } from '../entities/auth-token.entity';
 
 const ACCESS_TOKEN_TTL_SECONDS = 2 * 60 * 60;
 const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 const LAST_USED_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
+const DEFAULT_MAX_TOKENS_PER_USER = 5;
 
 export interface TokenPair {
   accessToken: string;
@@ -21,6 +23,7 @@ export class TokenService {
   constructor(
     @InjectRepository(AuthToken)
     private readonly tokensRepository: Repository<AuthToken>,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -44,6 +47,7 @@ export class TokenService {
       revokedAt: null,
     });
     await this.tokensRepository.save(token);
+    await this.enforceTokenLimit(userId);
 
     return {
       accessToken,
@@ -69,14 +73,22 @@ export class TokenService {
       },
     });
 
+    if (!token) {
+      throw new UnauthorizedException('Token 无效或已过期');
+    }
+
     if (
-      !token ||
       token.revokedAt ||
-      token.accessExpiresAt.getTime() <= Date.now() ||
+      token.refreshExpiresAt.getTime() <= Date.now() ||
       !token.user ||
       token.user.status !== 1
     ) {
+      await this.tokensRepository.delete(token.id);
       throw new UnauthorizedException('Token 无效或已过期');
+    }
+
+    if (token.accessExpiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException('Token 已过期');
     }
 
     if (
@@ -108,17 +120,21 @@ export class TokenService {
       },
     });
 
+    if (!token) {
+      throw new UnauthorizedException('Refresh Token 无效或已过期');
+    }
+
     if (
-      !token ||
       token.revokedAt ||
       token.refreshExpiresAt.getTime() <= Date.now() ||
       !token.user ||
       token.user.status !== 1
     ) {
+      await this.tokensRepository.delete(token.id);
       throw new UnauthorizedException('Refresh Token 无效或已过期');
     }
 
-    await this.tokensRepository.update(token.id, { revokedAt: new Date() });
+    await this.tokensRepository.delete(token.id);
     const tokens = await this.issueTokenPair(token.userId);
     return { tokens, user: token.user };
   }
@@ -127,10 +143,52 @@ export class TokenService {
    * 注销当前 refreshToken 对应的登录会话。
    */
   async revokeRefreshToken(refreshToken: string): Promise<void> {
-    await this.tokensRepository.update(
-      { refreshTokenHash: this.hashToken(refreshToken), revokedAt: IsNull() },
-      { revokedAt: new Date() },
+    await this.tokensRepository.delete({
+      refreshTokenHash: this.hashToken(refreshToken),
+    });
+  }
+
+  private async enforceTokenLimit(userId: string): Promise<void> {
+    await this.cleanupExpiredTokens(userId);
+
+    const maxTokens = this.getMaxTokensPerUser();
+    const activeTokens = await this.tokensRepository.find({
+      where: {
+        userId,
+        revokedAt: IsNull(),
+        refreshExpiresAt: MoreThan(new Date()),
+      },
+      order: { createdAt: 'ASC' },
+    });
+
+    if (activeTokens.length > maxTokens) {
+      await this.tokensRepository.remove(activeTokens.slice(0, activeTokens.length - maxTokens));
+    }
+  }
+
+  private async cleanupExpiredTokens(userId: string): Promise<void> {
+    await this.tokensRepository
+      .createQueryBuilder()
+      .delete()
+      .from(AuthToken)
+      .where('user_id = :userId', { userId })
+      .andWhere('(revoked_at IS NOT NULL OR refresh_expires_at <= :now)', {
+        now: new Date(),
+      })
+      .execute();
+  }
+
+  private getMaxTokensPerUser(): number {
+    const configured = Number(
+      this.configService.get<string>(
+        'AUTH_MAX_TOKENS_PER_USER',
+        String(DEFAULT_MAX_TOKENS_PER_USER),
+      ),
     );
+
+    return Number.isInteger(configured) && configured > 0
+      ? configured
+      : DEFAULT_MAX_TOKENS_PER_USER;
   }
 
   private hashToken(token: string): string {

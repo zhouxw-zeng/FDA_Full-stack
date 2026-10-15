@@ -15,6 +15,7 @@ import { DatabaseModule } from './database/database.module';
 import { FilesModule } from './files/files.module';
 import { RolesModule } from './roles/roles.module';
 import { RoutesModule } from './routes/routes.module';
+import { MobileAuthModule } from './mobile-auth/mobile-auth.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { UsersModule } from './users/users.module';
     CustomersModule,
     ForumModule,
     FilesModule,
+    MobileAuthModule,
     RolesModule,
     RoutesModule,
     UsersModule,

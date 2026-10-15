@@ -27,7 +27,7 @@ import { QueryDynamicTypeDto } from './dto/query-dynamic-type.dto';
 import { UpdateDynamicTypeDto } from './dto/update-dynamic-type.dto';
 import { ForumDynamicTypesService } from './forum-dynamic-types.service';
 
-@ApiTags('forum-dynamic-types')
+@ApiTags('admin / forum-dynamic-types')
 @ApiBearerAuth()
 @ApiExtraModels(DynamicTypeResponseDto, DynamicTypePageResponseDto, DeleteDynamicTypeResponseDto)
 @Controller('forum/dynamic-types')

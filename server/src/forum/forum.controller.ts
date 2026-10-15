@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiExtraModels,
@@ -8,7 +8,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { apiDataResponse } from '../common/swagger/api-data-response';
+import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { MobileAuthGuard } from '../mobile-auth/guards/mobile-auth.guard';
 import { AdminUser } from '../users/entities/admin-user.entity';
 import { AuditForumDynamicDto } from './dto/audit-forum-dynamic.dto';
 import { DeleteForumDynamicResponseDto } from './dto/delete-forum-dynamic-response.dto';
@@ -19,7 +21,7 @@ import { UpdateForumDynamicStatusDto } from './dto/update-forum-dynamic-status.d
 import { UpdateForumDynamicDto } from './dto/update-forum-dynamic.dto';
 import { ForumService } from './forum.service';
 
-@ApiTags('forum')
+@ApiTags('mobile / forum')
 @ApiBearerAuth()
 @ApiExtraModels(ForumDynamicResponseDto, ForumDynamicPageResponseDto, DeleteForumDynamicResponseDto)
 @Controller('forum')
@@ -27,7 +29,9 @@ export class ForumController {
   constructor(private readonly forumService: ForumService) {}
 
   @Get('dynamics')
-  @ApiOperation({ summary: '分页查询论坛动态' })
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '分页查询论坛动态（仅 C 端 token）' })
   @ApiOkResponse(
     apiDataResponse(ForumDynamicPageResponseDto, {
       description: '查询成功',
@@ -62,7 +66,9 @@ export class ForumController {
   }
 
   @Get('dynamics/:id')
-  @ApiOperation({ summary: '查询论坛动态详情' })
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '查询论坛动态详情（仅 C 端 token）' })
   @ApiParam({ name: 'id', example: 'D-5000' })
   @ApiOkResponse(
     apiDataResponse(ForumDynamicResponseDto, {
@@ -86,7 +92,9 @@ export class ForumController {
   }
 
   @Get('media/preview')
-  @ApiOperation({ summary: '查询动态媒体预览素材' })
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '查询动态媒体预览素材（仅 C 端 token）' })
   @ApiOkResponse({
     schema: {
       type: 'object',

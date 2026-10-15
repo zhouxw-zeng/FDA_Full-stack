@@ -26,7 +26,7 @@ import { CreateAiModelConfigDto } from './dto/create-ai-model-config.dto';
 import { QueryAiModelConfigDto } from './dto/query-ai-model-config.dto';
 import { UpdateAiModelConfigDto } from './dto/update-ai-model-config.dto';
 
-@ApiTags('ai-models')
+@ApiTags('admin / ai-models')
 @ApiBearerAuth()
 @ApiExtraModels(AiModelConfigResponseDto, AiModelConfigPageResponseDto)
 @Controller('ai/models')

@@ -16,7 +16,7 @@ import { AdminUser } from '../users/entities/admin-user.entity';
 import { AiChatService, UploadedTextFile } from './ai-chat.service';
 import { AiChatRequestDto } from './dto/ai-chat-request.dto';
 
-@ApiTags('ai-chat')
+@ApiTags('admin / ai-chat')
 @ApiBearerAuth()
 @Controller('ai/chat')
 export class AiChatController {

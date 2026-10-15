@@ -29,9 +29,19 @@ pnpm dev
 本工程也可以从仓库根目录启动：`npm run dev:admin`（等价于 `pnpm -C admin dev`）。
 构建配置集中在 `webpack.config.cjs`，端口与接口前缀在 `.env` 中维护。
 
-开发模式下 dev server 会自动拉起 `../server` 的 NestJS（`BackendDevServerPlugin`），
-并清理上次残留的前后端进程。若后端已在别处运行，用 `BACKEND_AUTOSTART=false` 跳过。
-后端依赖 MySQL，连接配置见 `server/.env`。
+开发模式下 dev server 会自动拉起 `../server` 的 NestJS（`BackendDevServerPlugin`）。
+若后端已在别处运行，用 `BACKEND_AUTOSTART=false` 跳过；后端依赖 MySQL，连接配置见 `server/.env`。
+
+启动前的端口处理规则（前后端一致）：
+
+1. 检查前端 `DEV_PORT`（默认 5173）与后端端口（默认取 `server/.env` 的 `PORT`）
+2. 端口被占用时先结束占用进程：`taskkill /PID <pid> /T /F`，失败再退化为 `Stop-Process -Force`
+3. 进程结束后等待端口回收（最多约 12 秒），成功则继续沿用原端口
+4. 若旧进程由其它用户或管理员权限启动、确实结束不掉，则自动顺延到下一个可用端口（5174、3001…）并打印提示，不会中断启动
+
+端口是否空闲用「真实 bind 探测」判断而不是 connect 探测：
+在带代理 / 沙箱的环境里，旧进程已退出、`netstat` 也没有监听项，但 connect 仍会被拦截层接受，
+从而把空闲端口误判成占用并触发无意义的重试。
 
 ### 演示账号
 
@@ -112,6 +122,23 @@ src
 
 动态路由统一以 `dyn:` 前缀命名，注销时按前缀移除，避免切换账号后残留上一个账号的权限。
 
+### 两端 token 严格隔离
+
+管理后台与 C 端是两套独立账号体系，token 分开存储、互不通用：
+
+| | 管理后台 | C 端 |
+| --- | --- | --- |
+| 账号表 | `admin_users` | `customer_users` |
+| 登录入口 | `POST /auth/login`（username） | `POST /mobile-auth/login`（phone） |
+| token 表 | `auth_tokens` | `customer_auth_tokens` |
+| 守卫 | `TokenAuthGuard` | `MobileAuthGuard` |
+
+- 管理端账号无法登录 C 端（phone 校验直接拦截），C 端手机号也无法登录管理端
+- 同一 token 不能跨端调用：管理端 token 访问 C 端接口返回 401，反之亦然
+- 论坛动态的读接口 `/forum/dynamics`、`/forum/media/preview` **只接受 C 端 token**；
+  管理后台使用 `/forum/admin/dynamics`、`/forum/admin/media/preview`（管理端守卫），
+  写接口（审批 / 上下架 / 编辑 / 删除）仍是管理端 token
+
 ### 后端接口现状
 
 | 模块 | 状态 |
@@ -136,7 +163,7 @@ src
 
 | 场景 | 流程 |
 | --- | --- |
-| 技能文件 | 生成或选择 `.md` → 上传到 `/api/files/upload`（`storageAddress=ai/skills/<技能名>`、`fileName=skills.md`）→ 用返回的 `fileUrl` 调 `POST/PUT /ai/skills` |
+| 技能文件 | 生成或选择 `.md` → 上传到 `/api/files/upload`（`storageAddress=ai/skills/<技能名>`、`fileName=skills.md`）→ 用返回的 `fileUrl` 调 `POST/PUT /api/ai/skills` |
 | 技能编辑 | 编辑器直接改正文 → 上传同名 `skills.md` 并带 `overwrite=true` 覆盖原文件 → 地址不变，正文刷新 |
 | 技能下载 | 优先按 `fileUrl` 下载，历史无地址的数据回退到内存正文导出 |
 

@@ -28,6 +28,7 @@ const DOCUMENT_EXTENSIONS = new Set([
   '.yml',
 ]);
 const ARCHIVE_EXTENSIONS = new Set(['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']);
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp']);
 
 @Injectable()
 export class FilesService {
@@ -41,6 +42,27 @@ export class FilesService {
     this.urlPrefix =
       this.configService.get<string>('LOCAL_FILE_URL_PREFIX', '/local-files').replace(/\/+$/, '') ||
       '/local-files';
+  }
+
+  async listAvatarOptions() {
+    const avatarDirectory = path.resolve(this.rootDirectory, 'avatar');
+    this.assertInsideRoot(avatarDirectory);
+
+    try {
+      const entries = await fs.readdir(avatarDirectory, { withFileTypes: true });
+
+      return entries
+        .filter(
+          (entry) => entry.isFile() && IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase()),
+        )
+        .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
+        .map((entry) => ({
+          name: entry.name,
+          url: `${this.urlPrefix}/avatar/${this.toUrlPath(entry.name)}`,
+        }));
+    } catch {
+      return [];
+    }
   }
 
   async uploadFile(

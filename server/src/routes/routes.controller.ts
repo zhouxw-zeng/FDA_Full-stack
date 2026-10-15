@@ -28,7 +28,7 @@ import { RouteTreeResponseDto } from './dto/route-tree-response.dto';
 import { UpdateRouteDto } from './dto/update-route.dto';
 import { RoutesService } from './routes.service';
 
-@ApiTags('routes')
+@ApiTags('admin / routes')
 @ApiBearerAuth()
 @ApiExtraModels(RouteResponseDto, RouteTreeResponseDto, DeleteRouteResponseDto)
 @Controller('routes')

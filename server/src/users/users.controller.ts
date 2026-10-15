@@ -27,7 +27,7 @@ import { UserPageResponseDto } from './dto/user-page-response.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { UsersService } from './users.service';
 
-@ApiTags('users')
+@ApiTags('admin / users')
 @ApiBearerAuth()
 @ApiExtraModels(UserResponseDto, UserPageResponseDto, DeleteUserResponseDto)
 @Controller('users')

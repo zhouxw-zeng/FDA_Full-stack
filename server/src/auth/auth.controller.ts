@@ -10,7 +10,7 @@ import { LoginDto } from './dto/login.dto';
 import { LogoutResponseDto } from './dto/logout-response.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 
-@ApiTags('auth')
+@ApiTags('public / auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
