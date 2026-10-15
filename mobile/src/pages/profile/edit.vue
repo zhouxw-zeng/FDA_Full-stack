@@ -141,7 +141,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <view class="edit-page rococo-canvas">
+  <view class="edit-page">
     <view class="edit-nav">
       <button class="back-button" aria-label="返回" @tap="goBack">‹</button>
       <text class="edit-title">个人资料</text>
@@ -150,95 +150,135 @@ onMounted(() => {
 
     <scroll-view class="edit-scroll" scroll-y>
       <view class="edit-content">
-        <view class="avatar-trigger" @tap="toggleAvatarPanel">
-          <image v-if="avatarUrl" class="avatar-image" :src="avatarUrl" mode="aspectFill" />
-          <view v-else class="avatar-placeholder">
-            {{ userStore.user?.nickname?.slice(0, 1) || '我' }}
+        <view class="profile-header">
+          <view class="avatar-wrap" @tap="toggleAvatarPanel">
+            <image
+              v-if="avatarUrl"
+              class="avatar-image"
+              :src="avatarUrl"
+              mode="aspectFill"
+            />
+            <view v-else class="avatar-placeholder">
+              {{ userStore.user?.nickname?.slice(0, 1) || '我' }}
+            </view>
+            <view class="camera-icon"></view>
           </view>
-          <view class="avatar-edit-badge">+</view>
         </view>
 
-        <view class="profile-card rococo-panel">
-          <view class="form-row">
-            <text class="form-label">姓名</text>
-            <input
-              v-model="form.nickname"
-              class="form-input"
-              maxlength="20"
-              placeholder="请输入您的姓名"
-            />
-          </view>
+        <view class="card-container">
+          <view class="form-list">
+            <view class="form-item">
+              <view class="label-area">
+                <text class="label">姓名</text>
+              </view>
+              <view class="value-area value-area--input">
+                <input
+                  v-model="form.nickname"
+                  class="value-input"
+                  maxlength="20"
+                  placeholder="请输入您的姓名"
+                />
+              </view>
+            </view>
 
-          <view class="form-row">
-            <text class="form-label">性别</text>
-            <view class="gender-options">
-              <view
-                v-for="option in [
-                  { label: '男', value: 1 },
-                  { label: '女', value: 2 },
-                ]"
-                :key="option.value"
-                class="gender-option"
-                :class="{ 'gender-option--active': form.gender === option.value }"
-                @tap="selectGender(option.value)"
+            <view class="form-item">
+              <view class="label-area">
+                <text class="label">性别</text>
+              </view>
+              <view class="value-area">
+                <view class="gender-group">
+                  <view
+                    v-for="option in [
+                      { label: '男', value: 1 },
+                      { label: '女', value: 2 },
+                    ]"
+                    :key="option.value"
+                    class="gender-btn"
+                    :class="{ 'gender-btn--active': form.gender === option.value }"
+                    @tap="selectGender(option.value)"
+                  >
+                    {{ option.label }}
+                  </view>
+                </view>
+              </view>
+            </view>
+
+            <view class="form-item">
+              <view class="label-area">
+                <text class="label">手机号</text>
+              </view>
+              <view class="value-area">
+                <text>{{ maskPhone(userStore.user?.phone) }}</text>
+              </view>
+            </view>
+
+            <view class="form-item">
+              <view class="label-area">
+                <text class="label">生日</text>
+                <text class="sub-label">填写完不可修改</text>
+              </view>
+              <picker
+                class="value-picker"
+                mode="date"
+                :value="form.birthday"
+                @change="handleBirthdayChange"
               >
-                {{ option.label }}
+                <view class="value-area">
+                  <view v-if="!form.birthday" class="birthday-prompt">
+                    完善生日，不错过惊喜
+                  </view>
+                  <view v-else class="value-text">
+                    <text>{{ form.birthday }}</text>
+                    <text class="arrow">›</text>
+                  </view>
+                </view>
+              </picker>
+            </view>
+
+            <view class="form-item">
+              <view class="label-area">
+                <text class="label">所在城市</text>
+              </view>
+              <view class="value-area value-area--input">
+                <input
+                  v-model="form.region"
+                  class="value-input"
+                  maxlength="100"
+                  placeholder="请输入所在城市"
+                />
+                <text class="arrow">›</text>
               </view>
             </view>
-          </view>
 
-          <view class="form-row">
-            <text class="form-label">手机号</text>
-            <view class="form-value-row">
-              <text class="form-value">{{ maskPhone(userStore.user?.phone) }}</text>
-              <text class="form-note">不可修改</text>
-            </view>
-          </view>
-
-          <view class="form-row">
-            <text class="form-label">生日</text>
-            <picker mode="date" :value="form.birthday" @change="handleBirthdayChange">
-              <view class="form-value-row form-value-row--picker">
-                <text class="form-value">
-                  {{ form.birthday || '完善生日，不错过惊喜' }}
-                </text>
-                <text class="form-arrow">›</text>
+            <view class="form-item">
+              <view class="label-area">
+                <text class="label">邮箱</text>
               </view>
-            </picker>
-          </view>
+              <view class="value-area value-area--input">
+                <input
+                  v-model="form.email"
+                  class="value-input"
+                  maxlength="100"
+                  placeholder="请输入邮箱"
+                />
+              </view>
+            </view>
 
-          <view class="form-row">
-            <text class="form-label">所在城市</text>
-            <input
-              v-model="form.region"
-              class="form-input"
-              maxlength="100"
-              placeholder="请输入所在城市"
-            />
-          </view>
-
-          <view class="form-row">
-            <text class="form-label">邮箱</text>
-            <input
-              v-model="form.email"
-              class="form-input"
-              maxlength="100"
-              placeholder="请输入邮箱"
-            />
-          </view>
-
-          <view class="form-block">
-            <text class="form-label">个性签名</text>
-            <textarea
-              v-model="form.signature"
-              class="signature-input"
-              maxlength="255"
-              placeholder="写一句想说的话"
-            />
+            <view class="form-item form-item--block">
+              <view class="label-area">
+                <text class="label">个性签名</text>
+              </view>
+              <textarea
+                v-model="form.signature"
+                class="signature-input"
+                maxlength="255"
+                placeholder="写一句想说的话"
+              />
+            </view>
           </view>
         </view>
 
-        <view v-if="avatarPanelVisible" class="avatar-panel rococo-panel">
+        <view v-if="avatarPanelVisible" class="avatar-panel">
           <view class="avatar-panel-head">
             <text class="avatar-panel-title">选择头像</text>
             <text class="avatar-panel-close" @tap="toggleAvatarPanel">收起</text>
@@ -282,6 +322,14 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
+$page-bg: #f4f5f7;
+$card-bg: #ffffff;
+$text-main: #333333;
+$text-sub: #999999;
+$border-color: #f0f0f0;
+$brand-color: #bca48e;
+$brand-bg: #f8f5f1;
+
 .edit-page {
   display: flex;
   flex-direction: column;
@@ -290,6 +338,7 @@ onMounted(() => {
   padding-top: var(--status-bar-height);
   box-sizing: border-box;
   overflow: hidden;
+  background: $page-bg;
 }
 
 .edit-nav {
@@ -303,7 +352,7 @@ onMounted(() => {
 .back-button {
   width: 64rpx;
   height: 64rpx;
-  color: $rococo-ink;
+  color: $text-main;
   font-size: 56rpx;
   line-height: 58rpx;
   text-align: center;
@@ -313,7 +362,7 @@ onMounted(() => {
 
 .edit-title {
   flex: 1;
-  color: $rococo-ink;
+  color: $text-main;
   font-size: 34rpx;
   font-weight: 600;
   text-align: center;
@@ -326,201 +375,270 @@ onMounted(() => {
 
 .edit-scroll {
   flex: 1;
+  height: 0;
   min-height: 0;
 }
 
 .edit-content {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 20rpx 28rpx 36rpx;
+  flex: none;
+  width: 100%;
+  padding: 0 32rpx 40rpx;
   box-sizing: border-box;
 }
 
-.avatar-trigger {
+.profile-header {
   position: relative;
+  z-index: 2;
+  display: flex;
   flex: none;
-  width: 132rpx;
-  height: 132rpx;
-  margin: 0 auto 24rpx;
+  justify-content: center;
+  width: 100%;
+  padding-top: 40rpx;
+}
+
+.avatar-wrap {
+  position: relative;
+  box-sizing: border-box;
+  width: 176rpx;
+  height: 176rpx;
+  overflow: visible;
+  background: #e53935;
+  border: 8rpx solid $card-bg;
+  border-radius: 50%;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
 }
 
 .avatar-image,
 .avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.avatar-image {
   display: block;
-  width: 132rpx;
-  height: 132rpx;
-  border: 6rpx solid $rococo-paper;
-  border-radius: 16rpx;
-  box-sizing: border-box;
-  box-shadow: 0 10rpx 26rpx rgba(137, 91, 116, 0.14);
 }
 
 .avatar-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: $rococo-rose;
-  font-size: 46rpx;
+  color: $card-bg;
+  font-size: 44rpx;
   font-weight: 600;
-  background: $rococo-blush;
 }
 
-.avatar-edit-badge {
+.camera-icon {
   position: absolute;
-  right: 0;
-  bottom: 4rpx;
+  right: -8rpx;
+  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36rpx;
-  height: 36rpx;
-  color: $rococo-paper;
-  font-size: 26rpx;
-  line-height: 1;
-  background: $rococo-gold-rich;
-  border: 4rpx solid $rococo-paper;
-  border-radius: 8rpx;
+  width: 48rpx;
+  height: 48rpx;
+  background: #e0e0e0;
+  border: 4rpx solid $card-bg;
+  border-radius: 50%;
 }
 
-.profile-card {
+.camera-icon::before {
+  width: 20rpx;
+  height: 16rpx;
+  background: #888888;
+  border-radius: 4rpx;
+  content: '';
+}
+
+.camera-icon::after {
+  position: absolute;
+  top: 16rpx;
+  width: 8rpx;
+  height: 8rpx;
+  background: #e0e0e0;
+  border-radius: 50%;
+  content: '';
+}
+
+.card-container {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 100%;
+  margin-top: -90rpx;
+  padding-top: 110rpx;
+  overflow: hidden;
+  background: $card-bg;
+  border-radius: 40rpx;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.03);
+}
+
+.form-list {
   display: flex;
   flex-direction: column;
-  align-self: stretch;
+  flex: none;
   width: 100%;
-  padding: 20rpx 30rpx 12rpx;
-  box-sizing: border-box;
-  overflow: hidden;
 }
 
-.form-row {
+.form-item {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
-  min-height: 92rpx;
-  border-bottom: 1rpx solid $rococo-line;
+  min-height: 128rpx;
+  padding: 36rpx 40rpx;
+  border-bottom: 1rpx solid $border-color;
+  box-sizing: border-box;
 }
 
-.form-label {
+.form-item:last-child {
+  border-bottom: none;
+}
+
+.label-area {
+  display: flex;
   flex: none;
-  width: 160rpx;
-  color: $rococo-ink;
-  font-size: 29rpx;
+  flex-direction: column;
+  justify-content: center;
 }
 
-.form-input {
+.label {
+  color: $text-main;
+  font-size: 32rpx;
+}
+
+.sub-label {
+  margin-top: 8rpx;
+  color: $text-sub;
+  font-size: 24rpx;
+}
+
+.value-area {
+  display: flex;
   flex: 1;
-  width: auto;
+  align-items: center;
+  justify-content: flex-end;
   min-width: 0;
-  height: 70rpx;
-  color: $rococo-ink;
-  font-size: 27rpx;
+  margin-left: 24rpx;
+  color: $text-main;
+  font-size: 30rpx;
+  text-align: right;
+}
+
+.value-area--input {
+  min-width: 0;
+}
+
+.value-input {
+  flex: 1;
+  min-width: 0;
+  height: 64rpx;
+  padding: 0;
+  color: $text-main;
+  font-size: 30rpx;
   text-align: right;
   background: transparent;
   border: none;
 }
 
-.form-input::placeholder {
-  color: rgba($rococo-muted, 0.62);
+.value-input::placeholder {
+  color: $text-sub;
 }
 
-.form-value-row {
+.value-picker {
   display: flex;
   flex: 1;
-  align-items: center;
   justify-content: flex-end;
   min-width: 0;
 }
 
-.form-value {
-  overflow: hidden;
-  color: $rococo-ink;
-  font-size: 27rpx;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.form-value-row--picker .form-value {
-  color: $rococo-muted;
-}
-
-.form-note {
-  flex: none;
-  margin-left: 12rpx;
-  padding: 6rpx 12rpx;
-  color: rgba($rococo-muted, 0.72);
-  font-size: 21rpx;
-  background: rgba($rococo-pink-blue, 0.16);
-  border-radius: 6rpx;
-}
-
-.form-arrow {
-  flex: none;
-  color: $rococo-muted;
-  font-size: 38rpx;
-  line-height: 1;
-}
-
-.gender-options {
+.value-text {
   display: flex;
-  flex: 1;
+  align-items: center;
   justify-content: flex-end;
 }
 
-.gender-option {
+.gender-group {
+  display: flex;
+  gap: 24rpx;
+}
+
+.gender-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 112rpx;
-  height: 58rpx;
-  color: $rococo-muted;
-  font-size: 25rpx;
-  line-height: 56rpx;
-  text-align: center;
-  background: rgba($rococo-paper, 0.78);
-  border: 1rpx solid rgba($rococo-muted, 0.24);
+  height: 64rpx;
+  color: $text-main;
+  font-size: 28rpx;
+  background: $card-bg;
+  border: 1rpx solid #e5e5e5;
   border-radius: 8rpx;
 }
 
-.gender-option + .gender-option {
-  margin-left: 16rpx;
+.gender-btn--active {
+  color: $brand-color;
+  background: $brand-bg;
+  border-color: $brand-color;
 }
 
-.gender-option--active {
-  color: $rococo-rose;
-  background: rgba($rococo-blush, 0.58);
-  border-color: rgba($rococo-rose, 0.5);
+.birthday-prompt {
+  display: inline-flex;
+  align-items: center;
+  padding: 12rpx 20rpx;
+  color: $brand-color;
+  font-size: 26rpx;
+  background: $brand-bg;
+  border-radius: 8rpx;
 }
 
-.form-block {
-  display: flex;
+.birthday-prompt::after {
+  margin-left: 8rpx;
+  font-family: monospace;
+  font-size: 32rpx;
+  content: '›';
+}
+
+.arrow {
+  margin-left: 12rpx;
+  color: $text-sub;
+  font-family: monospace;
+  font-size: 32rpx;
+}
+
+.form-item--block {
   flex-direction: column;
-  width: 100%;
-  padding: 24rpx 0 10rpx;
-  box-sizing: border-box;
+  align-items: stretch;
 }
 
 .signature-input {
   width: 100%;
-  height: 142rpx;
-  margin-top: 16rpx;
+  height: 160rpx;
+  margin-top: 18rpx;
   padding: 18rpx 20rpx;
-  color: $rococo-ink;
-  font-size: 26rpx;
+  color: $text-main;
+  font-size: 28rpx;
   line-height: 1.5;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1rpx solid rgba($rococo-pink-blue, 0.42);
+  background: #fafafa;
+  border: 1rpx solid $border-color;
   border-radius: 8rpx;
   box-sizing: border-box;
 }
 
 .signature-input::placeholder {
-  color: rgba($rococo-muted, 0.62);
+  color: $text-sub;
 }
 
 .avatar-panel {
-  align-self: stretch;
+  flex: none;
   width: 100%;
   margin-top: 24rpx;
-  padding: 26rpx;
+  padding: 28rpx;
+  background: $card-bg;
+  border-radius: 24rpx;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.03);
   box-sizing: border-box;
 }
 
@@ -528,18 +646,18 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18rpx;
+  margin-bottom: 20rpx;
 }
 
 .avatar-panel-title {
-  color: $rococo-ink;
-  font-size: 27rpx;
+  color: $text-main;
+  font-size: 28rpx;
   font-weight: 600;
 }
 
 .avatar-panel-close {
-  color: $rococo-rose;
-  font-size: 23rpx;
+  color: $brand-color;
+  font-size: 24rpx;
 }
 
 .avatar-grid {
@@ -552,14 +670,14 @@ onMounted(() => {
   width: 23%;
   margin-bottom: 14rpx;
   padding: 5rpx;
-  box-sizing: border-box;
   border: 2rpx solid transparent;
   border-radius: 8rpx;
+  box-sizing: border-box;
 }
 
 .avatar-option--active {
-  border-color: $rococo-rose;
-  background: rgba($rococo-blush, 0.42);
+  border-color: $brand-color;
+  background: $brand-bg;
 }
 
 .avatar-option-image {
@@ -578,29 +696,23 @@ onMounted(() => {
 .save-bar {
   display: flex;
   flex: none;
-  padding: 16rpx 28rpx;
+  padding: 16rpx 32rpx;
   padding-bottom: calc(16rpx + constant(safe-area-inset-bottom));
   padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
-  background: rgba($rococo-cream, 0.96);
-  border-top: 1rpx solid $rococo-line;
+  background: $page-bg;
+  border-top: 1rpx solid $border-color;
 }
 
 .save-button {
   width: 100%;
   height: 88rpx;
-  color: #fffdf9;
+  color: $card-bg;
   font-size: 29rpx;
   font-weight: 600;
   line-height: 86rpx;
-  background: linear-gradient(
-    135deg,
-    $rococo-gold-rich 0%,
-    $rococo-rose 54%,
-    $rococo-bright-pink 100%
-  );
-  border: 1rpx solid rgba($rococo-gold-pale, 0.72);
+  background: $brand-color;
+  border: none;
   border-radius: 8rpx;
-  box-shadow: 0 14rpx 30rpx rgba($rococo-rose, 0.18);
 }
 
 .save-button[disabled] {
