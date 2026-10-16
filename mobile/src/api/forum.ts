@@ -1,11 +1,14 @@
 import { http } from './request';
 
 import type {
+  CreateMyForumDynamicPayload,
   ForumComment,
   ForumDynamic,
   ForumDynamicQuery,
   ForumInteractionInfo,
+  MyForumDynamicQuery,
   PageResult,
+  UpdateMyForumDynamicPayload,
 } from '@/types';
 
 function normalizeDynamic(dynamic: ForumDynamic): ForumDynamic {
@@ -39,8 +42,41 @@ export async function fetchForumDynamics(
   return { ...result, list: result.list.map(normalizeDynamic) };
 }
 
+export async function fetchMyForumDynamics(
+  params: MyForumDynamicQuery,
+): Promise<PageResult<ForumDynamic>> {
+  const result = await http.get<PageResult<ForumDynamic>>('/forum/dynamics/mine', {
+    page: params.page ?? 1,
+    size: params.size ?? 10,
+    keyword: params.keyword,
+    topic: params.topic,
+    typeId: params.typeId,
+    pinned: params.pinned,
+    status: params.status,
+  });
+
+  return { ...result, list: result.list.map(normalizeDynamic) };
+}
+
 export async function fetchForumDynamicDetail(id: string): Promise<ForumDynamic> {
   return normalizeDynamic(await http.get<ForumDynamic>(`/forum/dynamics/${id}`));
+}
+
+export function updateMyForumDynamic(
+  id: string,
+  payload: UpdateMyForumDynamicPayload,
+): Promise<ForumDynamic> {
+  return http.put<ForumDynamic>(`/forum/dynamics/${id}`, payload).then(normalizeDynamic);
+}
+
+export function deleteMyForumDynamic(id: string): Promise<{ success: boolean; id: string }> {
+  return http.delete<{ success: boolean; id: string }>(`/forum/dynamics/${id}`);
+}
+
+export function createForumDynamic(
+  payload: CreateMyForumDynamicPayload,
+): Promise<ForumDynamic> {
+  return http.post<ForumDynamic>('/forum/dynamics', payload).then(normalizeDynamic);
 }
 
 export function toggleForumDynamicLike(

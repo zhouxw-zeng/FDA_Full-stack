@@ -132,7 +132,8 @@ watch(
 .avatar-popup {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  /* 必须低于 uni.showModal 的 999，避免二次确认框被压在弹窗下面 */
+  z-index: 900;
   display: flex;
   align-items: center;
   justify-content: center;

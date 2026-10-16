@@ -385,6 +385,8 @@ function confirmDelete(): Promise<boolean> {
     uni.showModal({
       title: '删除评论',
       content: '确定删除这条评论吗？',
+      confirmText: '确认',
+      cancelText: '取消',
       success: ({ confirm }) => resolve(Boolean(confirm)),
       fail: () => resolve(false),
     });

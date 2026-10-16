@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { resolveFileUrl } from '@/api/files';
+import { fetchMyForumDynamics } from '@/api/forum';
 import { useUserStore } from '@/stores/user';
 
 defineOptions({ name: 'ProfilePanel' });
@@ -13,8 +14,18 @@ interface FunctionItem {
   note: string;
 }
 
+type MetricKey = 'moments' | 'publish' | 'records';
+
+interface MetricItem {
+  key: MetricKey;
+  label: string;
+  value: string | number;
+  iconClass: string;
+}
+
 const userStore = useUserStore();
 const loggingOut = ref(false);
+const recordTotal = ref(0);
 
 const promoSlides = [
   {
@@ -41,10 +52,15 @@ const progressValue = computed(() =>
 );
 const progressWidth = computed(() => `${progressValue.value}%`);
 
-const metrics = computed(() => [
-  { label: '动态', value: userStore.userInfo?.dynamicCount ?? 0, iconClass: 'stat-icon--one' },
-  { label: '等级', value: `V${userStore.user?.vipLevel ?? 1}`, iconClass: 'stat-icon--two' },
-  { label: '成长', value: `${progressValue.value}%`, iconClass: 'stat-icon--three' },
+const metrics = computed<MetricItem[]>(() => [
+  {
+    key: 'moments',
+    label: '动态',
+    value: userStore.userInfo?.dynamicCount ?? 0,
+    iconClass: 'stat-icon--one',
+  },
+  { key: 'publish', label: '发布动态', value: '+', iconClass: 'stat-icon--two' },
+  { key: 'records', label: '记录', value: recordTotal.value, iconClass: 'stat-icon--three' },
 ]);
 
 const functionItems = computed<FunctionItem[]>(() => [
@@ -67,6 +83,33 @@ function goLogin(): void {
   uni.navigateTo({ url: '/pages/login/index' });
 }
 
+function goMyDynamics(): void {
+  uni.navigateTo({ url: '/pages/dynamic/records?status=published' });
+}
+
+function handleMetric(key: MetricKey): void {
+  if (key === 'publish') {
+    uni.navigateTo({ url: '/pages/dynamic/publish' });
+    return;
+  }
+
+  if (key === 'moments') {
+    goMyDynamics();
+    return;
+  }
+
+  uni.navigateTo({ url: '/pages/dynamic/records' });
+}
+
+async function loadRecordTotal(): Promise<void> {
+  try {
+    const result = await fetchMyForumDynamics({ page: 1, size: 1 });
+    recordTotal.value = result.total;
+  } catch {
+    recordTotal.value = 0;
+  }
+}
+
 async function initialize(): Promise<void> {
   if (!userStore.isLoggedIn) {
     return;
@@ -75,6 +118,7 @@ async function initialize(): Promise<void> {
   await Promise.all([
     userStore.loadProfile().catch(() => undefined),
     userStore.loadUserInfo().catch(() => undefined),
+    loadRecordTotal(),
   ]);
 }
 
@@ -95,6 +139,11 @@ async function logout(): Promise<void> {
 function handleFunction(item: FunctionItem): void {
   if (item.key === 'logout') {
     void logout();
+    return;
+  }
+
+  if (item.key === 'moments') {
+    goMyDynamics();
     return;
   }
 
@@ -178,7 +227,12 @@ watch(
           </view>
 
           <view class="stats-grid">
-            <view v-for="metric in metrics" :key="metric.label" class="stat-card">
+            <view
+              v-for="metric in metrics"
+              :key="metric.key"
+              class="stat-card"
+              @tap="handleMetric(metric.key)"
+            >
               <view class="stat-icon" :class="metric.iconClass"></view>
               <text class="stat-value">{{ metric.value }}</text>
               <text class="stat-label">{{ metric.label }}</text>

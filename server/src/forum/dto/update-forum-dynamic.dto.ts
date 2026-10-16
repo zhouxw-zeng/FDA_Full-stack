@@ -25,6 +25,12 @@ export class UpdateForumDynamicDto {
   @MaxLength(5000)
   content?: string;
 
+  @ApiPropertyOptional({ example: '更新后的动态标题' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  title?: string;
+
   @ApiPropertyOptional({ example: 2, description: '动态类型 ID' })
   @IsOptional()
   @Type(() => Number)

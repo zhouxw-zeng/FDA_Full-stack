@@ -30,6 +30,12 @@ export class ForumMediaItemDto {
   @Min(0)
   duration?: number;
 
+  @ApiPropertyOptional({ example: '/local-files/forum/dynamic/20261016-abc.jpg' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  url?: string;
+
   @ApiProperty({ example: 4280000 })
   @Type(() => Number)
   @IsInt()

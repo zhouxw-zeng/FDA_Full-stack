@@ -131,6 +131,7 @@ watch(
       v-if="userStore.isLoggedIn"
       class="waterfall-scroll"
       scroll-y
+      :show-scrollbar="false"
       @scrolltolower="loadMore"
     >
       <view v-if="loading && items.length === 0" class="state-panel">正在加载动态</view>
@@ -242,7 +243,23 @@ watch(
   min-height: 0;
   padding: 20rpx 24rpx 32rpx;
   box-sizing: border-box;
+  overflow-x: hidden;
+  scrollbar-width: none;
 }
+
+/* #ifdef H5 */
+/* H5 端 scroll-view 的真实滚动容器是内部 .uni-scroll-view */
+.waterfall-scroll :deep(.uni-scroll-view) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.waterfall-scroll :deep(.uni-scroll-view)::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+/* #endif */
 
 .waterfall {
   display: flex;

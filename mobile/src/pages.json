@@ -34,6 +34,22 @@
         "enablePullDownRefresh": false,
         "navigationBarTextStyle": "black"
       }
+    },
+    {
+      "path": "pages/dynamic/publish",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/dynamic/records",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
     }
   ],
   "globalStyle": {

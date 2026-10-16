@@ -2,11 +2,12 @@ import { Logger, UsePipes, ValidationPipe } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
 } from '@nestjs/websockets';
 import { randomUUID } from 'node:crypto';
-import { Socket } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import { Public } from '../auth/decorators/public.decorator';
 import { MobileTokenService } from '../mobile-auth/mobile-token.service';
 import { AiChatService } from './ai-chat.service';
@@ -62,6 +63,7 @@ interface ServerToClientEvents {
 
 type InterServerEvents = Record<string, never>;
 type AiSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
+type AiServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
 @Public()
 @WebSocketGateway({
@@ -71,7 +73,7 @@ type AiSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEv
     credentials: true,
   },
 })
-export class AiChatGateway {
+export class AiChatGateway implements OnGatewayInit<AiServer> {
   private readonly logger = new Logger(AiChatGateway.name);
 
   constructor(
@@ -79,29 +81,48 @@ export class AiChatGateway {
     private readonly mobileTokenService: MobileTokenService,
   ) {}
 
-  async handleConnection(client: AiSocket): Promise<void> {
-    const accessToken = this.extractAccessToken(client);
+  /**
+   * 鉴权放在命名空间中间件里完成，连接建立前就校验 token。
+   * 这样客户端收到 CONNECT 应答时 customerId 一定已写入，不会再出现
+   * 「连接已建立但首条 chat:send 早于异步鉴权完成」的竞态。
+   */
+  afterInit(server: AiServer): void {
+    server.use((socket, next) => {
+      void this.authenticateConnection(socket, next);
+    });
+  }
+
+  private async authenticateConnection(
+    socket: AiSocket,
+    next: (error?: Error) => void,
+  ): Promise<void> {
+    const accessToken = this.extractAccessToken(socket);
+
     if (!accessToken) {
-      this.emitError(client, undefined, 'UNAUTHORIZED', 'WebSocket 连接未携带 Bearer Token');
-      client.disconnect(true);
+      next(new Error('WebSocket 连接未携带 Bearer Token'));
       return;
     }
 
     try {
-      const customerId = await this.mobileTokenService.validateAccessToken(accessToken);
-      client.data.customerId = customerId;
-      client.emit('chat:connected', {
-        customerId,
-      });
+      socket.data.customerId = await this.mobileTokenService.validateAccessToken(accessToken);
+      next();
     } catch (error) {
-      this.emitError(
-        client,
-        undefined,
-        'UNAUTHORIZED',
-        error instanceof Error ? error.message : 'WebSocket 鉴权失败',
-      );
-      client.disconnect(true);
+      const message = error instanceof Error ? error.message : 'WebSocket 鉴权失败';
+      this.logger.warn(`WebSocket auth rejected: ${message}`);
+      next(new Error(message));
     }
+  }
+
+  handleConnection(client: AiSocket): void {
+    const customerId = client.data.customerId;
+    if (!customerId) {
+      client.disconnect(true);
+      return;
+    }
+
+    client.emit('chat:connected', {
+      customerId,
+    });
   }
 
   @SubscribeMessage('chat:send')

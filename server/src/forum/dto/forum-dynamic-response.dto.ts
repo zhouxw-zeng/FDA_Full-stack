@@ -38,6 +38,9 @@ export class ForumDynamicResponseDto {
   @ApiProperty({ example: 'D-5000' })
   id: string;
 
+  @ApiProperty({ example: '虚拟数据1', nullable: true })
+  title: string | null;
+
   @ApiProperty({ example: '昨晚在老码头蹲了两个小时，等到了想要的蓝调时刻。' })
   content: string;
 

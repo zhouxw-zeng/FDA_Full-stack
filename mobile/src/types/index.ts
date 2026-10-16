@@ -136,6 +136,32 @@ export interface ForumDynamicQuery extends PageQuery {
   enabled?: number;
 }
 
+export type MyForumDynamicStatus = 'published' | 'pending' | 'rejected';
+
+export interface MyForumDynamicQuery extends PageQuery {
+  keyword?: string;
+  topic?: string;
+  typeId?: number;
+  pinned?: boolean;
+  status?: MyForumDynamicStatus;
+}
+
+export interface UpdateMyForumDynamicPayload {
+  title?: string;
+  content?: string;
+  typeId?: number;
+  media?: ForumMediaItem[];
+  remark?: string;
+}
+
+export interface CreateMyForumDynamicPayload {
+  title?: string;
+  content: string;
+  typeId?: number;
+  topic?: string;
+  media?: ForumMediaItem[];
+}
+
 export interface ForumComment {
   id: string;
   dynamicId: string;

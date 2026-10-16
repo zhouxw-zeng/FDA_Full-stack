@@ -9,22 +9,20 @@ import {
 } from '@nestjs/swagger';
 import { apiDataResponse } from '../common/swagger/api-data-response';
 import { Public } from '../auth/decorators/public.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CurrentMobileCustomer } from '../mobile-auth/decorators/current-mobile-customer.decorator';
 import { MobileAuthGuard } from '../mobile-auth/guards/mobile-auth.guard';
-import { AdminUser } from '../users/entities/admin-user.entity';
-import { AuditForumDynamicDto } from './dto/audit-forum-dynamic.dto';
-import { DeleteForumDynamicResponseDto } from './dto/delete-forum-dynamic-response.dto';
 import { CreateForumCommentDto } from './dto/create-forum-comment.dto';
+import { CreateMyForumDynamicDto } from './dto/create-my-forum-dynamic.dto';
+import { DeleteForumDynamicResponseDto } from './dto/delete-forum-dynamic-response.dto';
 import { ForumFavoriteDto } from './dto/forum-favorite.dto';
 import { ForumInteractionDto } from './dto/forum-interaction.dto';
 import { ForumDynamicPageResponseDto } from './dto/forum-dynamic-page-response.dto';
 import { ForumDynamicResponseDto } from './dto/forum-dynamic-response.dto';
 import { QueryForumCommentDto } from './dto/query-forum-comment.dto';
+import { QueryMyForumDynamicDto } from './dto/query-my-forum-dynamic.dto';
 import { QueryForumDynamicDto } from './dto/query-forum-dynamic.dto';
 import { ShareForumDynamicDto } from './dto/share-forum-dynamic.dto';
-import { UpdateForumDynamicStatusDto } from './dto/update-forum-dynamic-status.dto';
-import { UpdateForumDynamicDto } from './dto/update-forum-dynamic.dto';
+import { UpdateMyForumDynamicDto } from './dto/update-my-forum-dynamic.dto';
 import { ForumCommentsService } from './forum-comments.service';
 import { ForumInteractionsService } from './forum-interactions.service';
 import { ForumService } from './forum.service';
@@ -53,7 +51,42 @@ export class ForumController {
     @Query() queryForumDynamicDto: QueryForumDynamicDto,
     @CurrentMobileCustomer() customerId?: string,
   ) {
-    return this.forumService.findAll(queryForumDynamicDto, customerId);
+    return this.forumService.findAll(
+      { ...queryForumDynamicDto, auditStatus: 'approved', enabled: 1 },
+      customerId,
+    );
+  }
+
+  @Get('dynamics/mine')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '分页查询当前移动端用户自己的动态' })
+  @ApiOkResponse(
+    apiDataResponse(ForumDynamicPageResponseDto, {
+      description: '查询成功',
+    }),
+  )
+  findMine(
+    @Query() queryMyForumDynamicDto: QueryMyForumDynamicDto,
+    @CurrentMobileCustomer() customerId: string,
+  ) {
+    return this.forumService.findMine(queryMyForumDynamicDto, customerId);
+  }
+
+  @Post('dynamics')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '发布动态（C 端用户，进入待审批状态）' })
+  @ApiOkResponse(
+    apiDataResponse(ForumDynamicResponseDto, {
+      description: '发布成功',
+    }),
+  )
+  createMine(
+    @Body() createMyForumDynamicDto: CreateMyForumDynamicDto,
+    @CurrentMobileCustomer() customerId: string,
+  ) {
+    return this.forumService.createMine(createMyForumDynamicDto, customerId);
   }
 
   @Put('dynamics/like')
@@ -70,6 +103,30 @@ export class ForumController {
   @ApiOperation({ summary: '收藏或取消收藏动态' })
   toggleFavorite(@Body() dto: ForumFavoriteDto, @CurrentMobileCustomer() customerId: string) {
     return this.interactionsService.toggleFavorite(dto, customerId);
+  }
+
+  @Put('dynamics/:id')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '编辑自己的动态，编辑后重新进入待审批状态' })
+  @ApiParam({ name: 'id', example: 'D-5000' })
+  @ApiOkResponse(apiDataResponse(ForumDynamicResponseDto, { description: '编辑成功' }))
+  updateMine(
+    @Param('id') id: string,
+    @Body() updateMyForumDynamicDto: UpdateMyForumDynamicDto,
+    @CurrentMobileCustomer() customerId: string,
+  ) {
+    return this.forumService.updateMine(id, updateMyForumDynamicDto, customerId);
+  }
+
+  @Delete('dynamics/:id')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '删除自己的动态' })
+  @ApiParam({ name: 'id', example: 'D-5000' })
+  @ApiOkResponse(apiDataResponse(DeleteForumDynamicResponseDto, { description: '删除成功' }))
+  removeMine(@Param('id') id: string, @CurrentMobileCustomer() customerId: string) {
+    return this.forumService.removeMine(id, customerId);
   }
 
   @Post('dynamics/share')
@@ -120,30 +177,6 @@ export class ForumController {
     return this.commentsService.remove(id, customerId);
   }
 
-  @Put('dynamics/audit')
-  @ApiOperation({ summary: '审批论坛动态' })
-  @ApiOkResponse(apiDataResponse(ForumDynamicResponseDto, { description: '审批成功' }))
-  audit(@Body() auditForumDynamicDto: AuditForumDynamicDto, @CurrentUser() admin: AdminUser) {
-    return this.forumService.audit(auditForumDynamicDto, admin.id);
-  }
-
-  @Put('dynamics/status')
-  @ApiOperation({ summary: '下架或启用论坛动态' })
-  @ApiOkResponse(apiDataResponse(ForumDynamicResponseDto, { description: '状态更新成功' }))
-  updateStatus(
-    @Body() updateForumDynamicStatusDto: UpdateForumDynamicStatusDto,
-    @CurrentUser() admin: AdminUser,
-  ) {
-    return this.forumService.updateStatus(updateForumDynamicStatusDto, admin.id);
-  }
-
-  @Put('dynamics')
-  @ApiOperation({ summary: '编辑论坛动态并记录变更日志' })
-  @ApiOkResponse(apiDataResponse(ForumDynamicResponseDto, { description: '编辑成功' }))
-  update(@Body() updateForumDynamicDto: UpdateForumDynamicDto, @CurrentUser() admin: AdminUser) {
-    return this.forumService.update(updateForumDynamicDto, admin.id);
-  }
-
   @Get('dynamics/:id')
   @Public()
   @UseGuards(MobileAuthGuard)
@@ -156,18 +189,6 @@ export class ForumController {
   )
   findOne(@Param('id') id: string, @CurrentMobileCustomer() customerId?: string) {
     return this.forumService.findOne(id, customerId);
-  }
-
-  @Delete('dynamics/:id')
-  @ApiOperation({ summary: '删除论坛动态' })
-  @ApiParam({ name: 'id', example: 'D-5000' })
-  @ApiOkResponse(
-    apiDataResponse(DeleteForumDynamicResponseDto, {
-      description: '删除成功',
-    }),
-  )
-  remove(@Param('id') id: string) {
-    return this.forumService.remove(id);
   }
 
   @Get('media/preview')

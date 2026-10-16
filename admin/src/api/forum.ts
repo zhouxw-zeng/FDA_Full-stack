@@ -43,31 +43,31 @@ export async function fetchForumDynamicDetail(id: string): Promise<ForumDynamic>
   return normalizeDynamic(await http.get<ForumDynamic>(`/forum/admin/dynamics/${id}`));
 }
 
-/** PUT /forum/dynamics/audit —— 审批通过 / 驳回，后端会同步写变更日志 */
+/** PUT /forum/admin/dynamics/audit —— 审批通过 / 驳回，后端会同步写变更日志 */
 export async function auditForumDynamic(payload: {
   id: string;
   status: Extract<AuditStatus, 'approved' | 'rejected'>;
   remark?: string;
 }): Promise<ForumDynamic> {
   return normalizeDynamic(
-    await http.put<ForumDynamic>('/forum/dynamics/audit', payload),
+    await http.put<ForumDynamic>('/forum/admin/dynamics/audit', payload),
   );
 }
 
-/** PUT /forum/dynamics/status —— enabled=1 启用，enabled=0 下架 */
+/** PUT /forum/admin/dynamics/status —— enabled=1 启用，enabled=0 下架 */
 export async function updateForumDynamicStatus(payload: {
   id: string;
   enabled: EnabledFlag;
   remark?: string;
 }): Promise<ForumDynamic> {
   return normalizeDynamic(
-    await http.put<ForumDynamic>('/forum/dynamics/status', payload),
+    await http.put<ForumDynamic>('/forum/admin/dynamics/status', payload),
   );
 }
 
-/** DELETE /forum/dynamics/:id */
+/** DELETE /forum/admin/dynamics/:id */
 export function deleteForumDynamic(id: string): Promise<{ success: boolean; id: string }> {
-  return http.delete<{ success: boolean; id: string }>(`/forum/dynamics/${id}`);
+  return http.delete<{ success: boolean; id: string }>(`/forum/admin/dynamics/${id}`);
 }
 
 /** GET /forum/admin/media/preview —— 管理端动态媒体素材 */

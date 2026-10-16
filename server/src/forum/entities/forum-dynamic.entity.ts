@@ -39,6 +39,9 @@ export class ForumDynamic {
   @Column({ name: 'type_id', type: 'bigint', unsigned: true })
   typeId: string;
 
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  title: string | null;
+
   @ManyToOne(() => ForumDynamicType, {
     eager: true,
     onDelete: 'RESTRICT',

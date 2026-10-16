@@ -7,6 +7,10 @@ interface ChatStartPayload {
   sessionId: string | null;
 }
 
+interface ChatConnectedPayload {
+  customerId: string;
+}
+
 interface ChatDeltaPayload {
   sessionId: string;
   content: string;
@@ -27,6 +31,7 @@ interface ChatErrorPayload {
 }
 
 interface AiChatStreamCallbacks {
+  onConnected?: (payload: ChatConnectedPayload) => void;
   onStart?: (payload: ChatStartPayload) => void;
   onDelta?: (payload: ChatDeltaPayload) => void;
   onReply?: (payload: ChatReplyPayload) => void;
@@ -87,7 +92,10 @@ export function streamAiChat(
       reject(error instanceof Error ? error : new Error('AI 流式连接失败'));
     };
 
-    socket.on('connect', () => {
+    // chat:connected 由服务端在 token 校验通过后下发，收到它才代表连接可安全发送，
+    // 避免握手未完成就发送导致的“WebSocket 连接未通过鉴权”。
+    socket.on('chat:connected', (data: ChatConnectedPayload) => {
+      callbacks.onConnected?.(data);
       socket.emit('chat:send', {
         ...payload,
         requestId: createRequestId(),

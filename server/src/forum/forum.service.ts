@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,7 +9,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { createPaginationResult, resolvePagination } from '../common/pagination/pagination';
 import { AuditForumDynamicDto } from './dto/audit-forum-dynamic.dto';
+import { CreateMyForumDynamicDto } from './dto/create-my-forum-dynamic.dto';
+import { QueryMyForumDynamicDto } from './dto/query-my-forum-dynamic.dto';
 import { QueryForumDynamicDto } from './dto/query-forum-dynamic.dto';
+import { UpdateMyForumDynamicDto } from './dto/update-my-forum-dynamic.dto';
 import { UpdateForumDynamicStatusDto } from './dto/update-forum-dynamic-status.dto';
 import { UpdateForumDynamicDto } from './dto/update-forum-dynamic.dto';
 import { ForumDynamicType } from './entities/forum-dynamic-type.entity';
@@ -16,6 +20,9 @@ import { ForumDynamicFavorite } from './entities/forum-dynamic-favorite.entity';
 import { ForumDynamicLike } from './entities/forum-dynamic-like.entity';
 import { ForumDynamic } from './entities/forum-dynamic.entity';
 import { ForumChangeLogsService } from './forum-change-logs.service';
+
+/** 未指定动态类型时的兜底类型，对应 forum_dynamic_types 里的「其他」 */
+const DEFAULT_DYNAMIC_TYPE_ID = 5;
 
 @Injectable()
 export class ForumService {
@@ -59,6 +66,57 @@ export class ForumService {
     }
     if (enabled !== undefined) {
       query.andWhere('dynamic.enabled = :enabled', { enabled });
+    }
+
+    const [list, total] = await query
+      .orderBy('dynamic.pinned', 'DESC')
+      .addOrderBy('dynamic.createdAt', 'DESC')
+      .skip(skip)
+      .take(size)
+      .getManyAndCount();
+
+    const interactionStates = await this.getInteractionStates(
+      list.map((dynamic) => dynamic.id),
+      customerId,
+    );
+
+    return createPaginationResult(
+      list.map((dynamic) => this.toResponse(dynamic, interactionStates.get(dynamic.id))),
+      total,
+      page,
+      size,
+    );
+  }
+
+  async findMine(queryMyForumDynamicDto: QueryMyForumDynamicDto, customerId: string) {
+    const { keyword, topic, typeId, pinned, status } = queryMyForumDynamicDto;
+    const { page, size, skip } = resolvePagination(queryMyForumDynamicDto);
+    const query = this.dynamicsRepository
+      .createQueryBuilder('dynamic')
+      .leftJoinAndSelect('dynamic.customer', 'customer')
+      .leftJoinAndSelect('dynamic.type', 'type')
+      .where('dynamic.customerId = :customerId', { customerId });
+
+    if (keyword) {
+      query.andWhere(
+        '(dynamic.title LIKE :keyword OR dynamic.content LIKE :keyword OR dynamic.id LIKE :keyword)',
+        { keyword: `%${keyword}%` },
+      );
+    }
+    if (topic) {
+      query.andWhere('dynamic.topic = :topic', { topic });
+    }
+    if (typeId !== undefined) {
+      query.andWhere('dynamic.typeId = :typeId', { typeId: String(typeId) });
+    }
+    if (pinned !== undefined) {
+      query.andWhere('dynamic.pinned = :pinned', { pinned: pinned ? 1 : 0 });
+    }
+    if (status === 'published') {
+      query.andWhere('dynamic.auditStatus = :auditStatus', { auditStatus: 'approved' });
+      query.andWhere('dynamic.enabled = :enabled', { enabled: 1 });
+    } else if (status === 'pending' || status === 'rejected') {
+      query.andWhere('dynamic.auditStatus = :auditStatus', { auditStatus: status });
     }
 
     const [list, total] = await query
@@ -147,6 +205,9 @@ export class ForumService {
     if (updateForumDynamicDto.content !== undefined) {
       dynamic.content = updateForumDynamicDto.content;
     }
+    if (updateForumDynamicDto.title !== undefined) {
+      dynamic.title = updateForumDynamicDto.title;
+    }
     if (updateForumDynamicDto.media !== undefined) {
       dynamic.media = updateForumDynamicDto.media;
     }
@@ -178,6 +239,105 @@ export class ForumService {
     return this.toResponse(saved);
   }
 
+  async createMine(createMyForumDynamicDto: CreateMyForumDynamicDto, customerId: string) {
+    const typeId = createMyForumDynamicDto.typeId ?? DEFAULT_DYNAMIC_TYPE_ID;
+    const type = await this.typesRepository.findOneBy({ typeId: String(typeId) });
+    if (!type) {
+      throw new NotFoundException(`动态类型 ${typeId} 不存在`);
+    }
+
+    const media = createMyForumDynamicDto.media ?? [];
+    if (media.length > 9) {
+      throw new BadRequestException('最多只能上传 9 个素材');
+    }
+
+    // C 端新发布的动态一律进入待审批状态，审批通过后才对外可见
+    const dynamic = this.dynamicsRepository.create({
+      id: this.createDynamicId(),
+      customerId,
+      typeId: type.typeId,
+      type,
+      title: createMyForumDynamicDto.title?.trim() || null,
+      content: createMyForumDynamicDto.content,
+      media,
+      topic: createMyForumDynamicDto.topic?.trim() || type.typeName,
+      favoriteCount: 0,
+      auditStatus: 'pending',
+      enabled: 0,
+    });
+
+    const saved = await this.dynamicsRepository.save(dynamic);
+
+    await this.changeLogsService.recordChange({
+      targetId: saved.id,
+      ownerId: customerId,
+      editorId: customerId,
+      editorType: 'customer',
+      action: 'create',
+      remark: 'C 端用户发布动态',
+    });
+
+    return this.toResponse(await this.getDynamicOrThrow(saved.id));
+  }
+
+  async updateMine(
+    id: string,
+    updateMyForumDynamicDto: UpdateMyForumDynamicDto,
+    customerId: string,
+  ) {
+    const dynamic = await this.getDynamicOrThrow(id);
+    if (dynamic.customerId !== customerId) {
+      throw new ForbiddenException('只能编辑自己的动态');
+    }
+
+    if (updateMyForumDynamicDto.title !== undefined) {
+      dynamic.title = updateMyForumDynamicDto.title;
+    }
+    if (updateMyForumDynamicDto.content !== undefined) {
+      dynamic.content = updateMyForumDynamicDto.content;
+    }
+    if (updateMyForumDynamicDto.media !== undefined) {
+      dynamic.media = updateMyForumDynamicDto.media;
+    }
+    if (updateMyForumDynamicDto.typeId !== undefined) {
+      const type = await this.typesRepository.findOneBy({
+        typeId: String(updateMyForumDynamicDto.typeId),
+      });
+      if (!type) {
+        throw new NotFoundException(`动态类型 ${updateMyForumDynamicDto.typeId} 不存在`);
+      }
+
+      dynamic.typeId = type.typeId;
+      dynamic.type = type;
+      dynamic.topic = type.typeName;
+    }
+
+    dynamic.auditStatus = 'pending';
+    dynamic.enabled = 0;
+    const saved = await this.dynamicsRepository.save(dynamic);
+
+    await this.changeLogsService.recordChange({
+      targetId: dynamic.id,
+      ownerId: customerId,
+      editorId: customerId,
+      editorType: 'customer',
+      action: 'edit',
+      remark: updateMyForumDynamicDto.remark,
+    });
+
+    return this.toResponse(saved);
+  }
+
+  async removeMine(id: string, customerId: string) {
+    const dynamic = await this.getDynamicOrThrow(id);
+    if (dynamic.customerId !== customerId) {
+      throw new ForbiddenException('只能删除自己的动态');
+    }
+
+    await this.dynamicsRepository.delete(id);
+    return { success: true, id };
+  }
+
   async findPreviewMedia() {
     const dynamics = await this.dynamicsRepository.find({
       order: {
@@ -203,6 +363,12 @@ export class ForumService {
     return dynamic;
   }
 
+  private createDynamicId(): string {
+    const stamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `D-${stamp}${random}`;
+  }
+
   private toResponse(
     dynamic: ForumDynamic,
     interactionState: { liked: boolean; favorited: boolean } = {
@@ -212,10 +378,11 @@ export class ForumService {
   ) {
     return {
       id: dynamic.id,
+      title: dynamic.title,
       content: dynamic.content,
       media: dynamic.media,
-      typeId: Number(dynamic.typeId),
-      typeName: dynamic.type.typeName,
+      typeId: dynamic.typeId ? Number(dynamic.typeId) : 0,
+      typeName: dynamic.type?.typeName ?? '',
       author: {
         id: dynamic.customer.id,
         nickname: dynamic.customer.nickname,

@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { createPaginationResult, resolvePagination } from '../common/pagination/pagination';
 import { PaginationQueryDto } from '../common/pagination/pagination-query.dto';
 import { AiChatRequestDto } from './dto/ai-chat-request.dto';
@@ -320,6 +320,58 @@ export class AiChatService {
       attachments: message.attachments,
       createdAt: message.createdAt,
     }));
+  }
+
+  async removeMessage(messageId: string, customerId: string) {
+    const message = await this.messagesRepository.findOneBy({ id: messageId });
+    if (!message) {
+      throw new NotFoundException(`AI 聊天消息 ${messageId} 不存在`);
+    }
+
+    await this.getSessionOrThrow(message.sessionId, customerId);
+    await this.messagesRepository.delete(message.id);
+    await this.sessionsRepository.update(message.sessionId, { updatedAt: new Date() });
+
+    return { success: true, id: messageId };
+  }
+
+  async removeSession(sessionId: string, customerId: string) {
+    await this.getSessionOrThrow(sessionId, customerId);
+    await this.sessionsRepository.delete(sessionId);
+
+    return { success: true, id: sessionId };
+  }
+
+  async clearSessionMessages(sessionId: string, customerId: string) {
+    await this.getSessionOrThrow(sessionId, customerId);
+    const result = await this.messagesRepository.delete({ sessionId });
+    await this.sessionsRepository.update(sessionId, { updatedAt: new Date() });
+
+    return {
+      success: true,
+      sessionId,
+      deletedCount: result.affected ?? 0,
+    };
+  }
+
+  async clearSessions(customerId: string) {
+    const sessions = await this.sessionsRepository.findBy({ customerId });
+    const sessionIds = sessions.map((session) => session.id);
+    const deletedMessages = sessionIds.length
+      ? await this.messagesRepository.count({
+          where: { sessionId: In(sessionIds) },
+        })
+      : 0;
+
+    if (sessionIds.length > 0) {
+      await this.sessionsRepository.delete({ customerId });
+    }
+
+    return {
+      success: true,
+      deletedSessions: sessions.length,
+      deletedMessages,
+    };
   }
 
   private async createSession(customerId: string, message: string) {

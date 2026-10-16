@@ -22,6 +22,7 @@ export interface MediaItem {
 /** 论坛动态：GET /forum/dynamics */
 export interface ForumDynamic {
   id: string;
+  title?: string | null;
   content: string;
   media: MediaItem[];
   author: {

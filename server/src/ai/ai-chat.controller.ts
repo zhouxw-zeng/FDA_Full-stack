@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -42,6 +43,39 @@ export class AiChatController {
   @ApiOperation({ summary: '查询聊天会话消息' })
   messages(@Param('sessionId') sessionId: string, @CurrentMobileCustomer() customerId: string) {
     return this.chatService.findMessages(sessionId, customerId);
+  }
+
+  @Delete('messages/:messageId')
+  @ApiOperation({ summary: '删除当前用户单条聊天记录' })
+  removeMessage(
+    @Param('messageId') messageId: string,
+    @CurrentMobileCustomer() customerId: string,
+  ) {
+    return this.chatService.removeMessage(messageId, customerId);
+  }
+
+  @Delete('sessions/:sessionId')
+  @ApiOperation({ summary: '删除当前用户单个聊天会话' })
+  removeSession(
+    @Param('sessionId') sessionId: string,
+    @CurrentMobileCustomer() customerId: string,
+  ) {
+    return this.chatService.removeSession(sessionId, customerId);
+  }
+
+  @Delete('sessions/:sessionId/messages')
+  @ApiOperation({ summary: '清空当前用户指定会话聊天记录' })
+  clearSessionMessages(
+    @Param('sessionId') sessionId: string,
+    @CurrentMobileCustomer() customerId: string,
+  ) {
+    return this.chatService.clearSessionMessages(sessionId, customerId);
+  }
+
+  @Delete('sessions')
+  @ApiOperation({ summary: '清空当前用户全部聊天记录' })
+  clearSessions(@CurrentMobileCustomer() customerId: string) {
+    return this.chatService.clearSessions(customerId);
   }
 
   @Post('summary')
