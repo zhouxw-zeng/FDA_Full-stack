@@ -41,6 +41,9 @@ export class AiUsageRecord {
   @Column({ name: 'admin_user_id', type: 'bigint', unsigned: true, nullable: true })
   adminUserId: string | null;
 
+  @Column({ name: 'customer_id', type: 'bigint', unsigned: true, nullable: true })
+  customerId: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'datetime', precision: 6 })
   createdAt: Date;
 }

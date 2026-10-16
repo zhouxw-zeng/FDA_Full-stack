@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { MobileAuthModule } from '../mobile-auth/mobile-auth.module';
+import { AiChatGateway } from './ai-chat.gateway';
 import { AiChatController } from './ai-chat.controller';
 import { AiChatService } from './ai-chat.service';
 import { AiModelsController } from './ai-models.controller';
@@ -28,6 +30,7 @@ import { OpenAiCompatibleService } from './openai-compatible.service';
       AiQuotaAccount,
       AiSkill,
     ]),
+    MobileAuthModule,
   ],
   controllers: [
     AiModelsController,
@@ -40,6 +43,7 @@ import { OpenAiCompatibleService } from './openai-compatible.service';
     AiModelsService,
     AiSkillsService,
     AiChatService,
+    AiChatGateway,
     AiUsageService,
     AiQuotaService,
     OpenAiCompatibleService,

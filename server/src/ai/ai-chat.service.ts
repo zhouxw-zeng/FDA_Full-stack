@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { createPaginationResult, resolvePagination } from '../common/pagination/pagination';
@@ -6,7 +11,11 @@ import { PaginationQueryDto } from '../common/pagination/pagination-query.dto';
 import { AiChatRequestDto } from './dto/ai-chat-request.dto';
 import { AiChatMessage } from './entities/ai-chat-message.entity';
 import { AiChatSession } from './entities/ai-chat-session.entity';
-import { OpenAiCompatibleService, OpenAiMessage } from './openai-compatible.service';
+import {
+  OpenAiCompatibleService,
+  OpenAiCompletionResult,
+  OpenAiMessage,
+} from './openai-compatible.service';
 
 export interface UploadedTextFile {
   originalname: string;
@@ -14,6 +23,26 @@ export interface UploadedTextFile {
   buffer: Buffer;
   size: number;
 }
+
+export type AiChatStreamEvent =
+  | {
+      type: 'delta';
+      sessionId: string;
+      content: string;
+    }
+  | {
+      type: 'done';
+      sessionId: string;
+      message: {
+        id: string;
+        role: 'assistant';
+        content: string;
+        createdAt: Date;
+      };
+      usage: OpenAiCompletionResult['usage'];
+      providerCode: string;
+      modelName: string;
+    };
 
 const TEXT_FILE_EXTENSIONS = ['.txt', '.md', '.json', '.csv', '.log', '.xml', '.yaml', '.yml'];
 
@@ -27,10 +56,10 @@ export class AiChatService {
     private readonly openAiCompatibleService: OpenAiCompatibleService,
   ) {}
 
-  async chat(chatRequestDto: AiChatRequestDto, adminUserId: string) {
+  async chat(chatRequestDto: AiChatRequestDto, customerId: string) {
     const session = chatRequestDto.sessionId
-      ? await this.getSessionOrThrow(chatRequestDto.sessionId, adminUserId)
-      : await this.createSession(adminUserId, chatRequestDto.message);
+      ? await this.getSessionOrThrow(chatRequestDto.sessionId, customerId)
+      : await this.createSession(customerId, chatRequestDto.message);
 
     if (chatRequestDto.modelConfigId) {
       session.modelConfigId = chatRequestDto.modelConfigId;
@@ -49,9 +78,10 @@ export class AiChatService {
 
     const history = await this.messagesRepository.find({
       where: { sessionId: session.id },
-      order: { createdAt: 'ASC' },
+      order: { createdAt: 'DESC' },
       take: 30,
     });
+    history.reverse();
 
     const messages: OpenAiMessage[] = history.map((message) => ({
       role: message.role,
@@ -61,7 +91,7 @@ export class AiChatService {
     const result = await this.openAiCompatibleService.complete(
       messages,
       'chat',
-      adminUserId,
+      customerId,
       session.modelConfigId ?? undefined,
     );
 
@@ -88,10 +118,92 @@ export class AiChatService {
     };
   }
 
+  async *streamChat(
+    chatRequestDto: AiChatRequestDto,
+    customerId: string,
+  ): AsyncGenerator<AiChatStreamEvent, void, void> {
+    const session = chatRequestDto.sessionId
+      ? await this.getSessionOrThrow(chatRequestDto.sessionId, customerId)
+      : await this.createSession(customerId, chatRequestDto.message);
+
+    if (chatRequestDto.modelConfigId) {
+      session.modelConfigId = chatRequestDto.modelConfigId;
+      await this.sessionsRepository.save(session);
+    }
+
+    const userContent = this.buildUserContent(chatRequestDto.message, chatRequestDto.attachments);
+    await this.messagesRepository.save(
+      this.messagesRepository.create({
+        sessionId: session.id,
+        role: 'user',
+        content: userContent,
+        attachments: chatRequestDto.attachments ?? null,
+      }),
+    );
+
+    const history = await this.messagesRepository.find({
+      where: { sessionId: session.id },
+      order: { createdAt: 'DESC' },
+      take: 30,
+    });
+    history.reverse();
+
+    const messages: OpenAiMessage[] = history.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+
+    let result: OpenAiCompletionResult | null = null;
+    for await (const event of this.openAiCompatibleService.stream(
+      messages,
+      'chat',
+      customerId,
+      session.modelConfigId ?? undefined,
+    )) {
+      if (event.type === 'delta') {
+        yield {
+          type: 'delta',
+          sessionId: session.id,
+          content: event.content,
+        };
+        continue;
+      }
+
+      result = event.result;
+    }
+
+    if (!result) {
+      throw new BadGatewayException('AI 流式调用未返回完整结果');
+    }
+
+    const assistantMessage = await this.messagesRepository.save(
+      this.messagesRepository.create({
+        sessionId: session.id,
+        role: 'assistant',
+        content: result.content,
+        attachments: null,
+      }),
+    );
+
+    yield {
+      type: 'done',
+      sessionId: session.id,
+      message: {
+        id: assistantMessage.id,
+        role: 'assistant',
+        content: assistantMessage.content,
+        createdAt: assistantMessage.createdAt,
+      },
+      usage: result.usage,
+      providerCode: result.model.providerCode,
+      modelName: result.model.modelName,
+    };
+  }
+
   async summarizeFiles(
     files: UploadedTextFile[],
     prompt: string | undefined,
-    adminUserId: string,
+    customerId: string,
     modelConfigId?: string,
   ) {
     if (!files.length) {
@@ -108,7 +220,7 @@ export class AiChatService {
     const result = await this.openAiCompatibleService.complete(
       [{ role: 'user', content }],
       'summary',
-      adminUserId,
+      customerId,
       modelConfigId,
     );
 
@@ -123,7 +235,7 @@ export class AiChatService {
   async oneShot(
     files: UploadedTextFile[],
     prompt: string | undefined,
-    adminUserId: string,
+    customerId: string,
     modelConfigId?: string,
   ) {
     const imageFiles = files.map((file) => {
@@ -159,7 +271,7 @@ export class AiChatService {
         },
       ],
       'one-shot',
-      adminUserId,
+      customerId,
       modelConfigId,
     );
 
@@ -171,10 +283,10 @@ export class AiChatService {
     };
   }
 
-  async findSessions(query: PaginationQueryDto, adminUserId: string) {
+  async findSessions(query: PaginationQueryDto, customerId: string) {
     const { page, size, skip } = resolvePagination(query);
     const [list, total] = await this.sessionsRepository.findAndCount({
-      where: { adminUserId },
+      where: { customerId },
       order: { updatedAt: 'DESC' },
       skip,
       take: size,
@@ -194,8 +306,8 @@ export class AiChatService {
     );
   }
 
-  async findMessages(sessionId: string, adminUserId: string) {
-    await this.getSessionOrThrow(sessionId, adminUserId);
+  async findMessages(sessionId: string, customerId: string) {
+    await this.getSessionOrThrow(sessionId, customerId);
     const messages = await this.messagesRepository.find({
       where: { sessionId },
       order: { createdAt: 'ASC' },
@@ -210,20 +322,21 @@ export class AiChatService {
     }));
   }
 
-  private async createSession(adminUserId: string, message: string) {
+  private async createSession(customerId: string, message: string) {
     return this.sessionsRepository.save(
       this.sessionsRepository.create({
-        adminUserId,
+        adminUserId: null,
+        customerId,
         modelConfigId: null,
         title: message.slice(0, 60) || '新会话',
       }),
     );
   }
 
-  private async getSessionOrThrow(sessionId: string, adminUserId: string): Promise<AiChatSession> {
+  private async getSessionOrThrow(sessionId: string, customerId: string): Promise<AiChatSession> {
     const session = await this.sessionsRepository.findOneBy({
       id: sessionId,
-      adminUserId,
+      customerId,
     });
 
     if (!session) {

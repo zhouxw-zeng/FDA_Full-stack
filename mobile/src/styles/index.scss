@@ -29,6 +29,19 @@ button::after {
   border: none;
 }
 
+scroll-view,
+textarea {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+scroll-view::-webkit-scrollbar,
+textarea::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .panel {
   width: 100%;
   min-height: 0;

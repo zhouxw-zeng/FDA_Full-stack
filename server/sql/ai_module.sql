@@ -85,7 +85,8 @@ ON DUPLICATE KEY UPDATE
 
 CREATE TABLE IF NOT EXISTS ai_chat_sessions (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '会话ID',
-  admin_user_id BIGINT UNSIGNED NOT NULL COMMENT 'B端管理员ID',
+  admin_user_id BIGINT UNSIGNED NULL COMMENT 'B端管理员ID（历史兼容）',
+  customer_id BIGINT UNSIGNED NULL COMMENT '移动端C端用户ID',
   model_config_id BIGINT UNSIGNED NULL COMMENT '模型配置ID',
   title VARCHAR(200) NOT NULL COMMENT '会话标题',
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '创建时间',
@@ -93,8 +94,13 @@ CREATE TABLE IF NOT EXISTS ai_chat_sessions (
     ON UPDATE CURRENT_TIMESTAMP(6) COMMENT '修改时间',
   PRIMARY KEY (id),
   KEY idx_ai_chat_sessions_admin (admin_user_id, updated_at),
+  KEY idx_ai_chat_sessions_customer (customer_id, updated_at),
   CONSTRAINT fk_ai_chat_sessions_admin_user
     FOREIGN KEY (admin_user_id) REFERENCES admin_users (id)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE,
+  CONSTRAINT fk_ai_chat_sessions_customer_user
+    FOREIGN KEY (customer_id) REFERENCES customer_users (id)
     ON UPDATE CASCADE
     ON DELETE CASCADE,
   CONSTRAINT fk_ai_chat_sessions_model
@@ -138,13 +144,19 @@ CREATE TABLE IF NOT EXISTS ai_usage_records (
   status ENUM('success', 'failed') NOT NULL DEFAULT 'success' COMMENT '调用状态',
   error_message VARCHAR(1000) NULL COMMENT '错误信息',
   admin_user_id BIGINT UNSIGNED NULL COMMENT '操作管理员ID',
+  customer_id BIGINT UNSIGNED NULL COMMENT '移动端C端用户ID',
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '创建时间',
   PRIMARY KEY (id),
   KEY idx_ai_usage_model_created (model_config_id, created_at),
   KEY idx_ai_usage_provider_created (provider_code, created_at),
   KEY idx_ai_usage_status (status),
+  KEY idx_ai_usage_customer_created (customer_id, created_at),
   CONSTRAINT fk_ai_usage_model_config
     FOREIGN KEY (model_config_id) REFERENCES ai_model_configs (id)
+    ON UPDATE CASCADE
+    ON DELETE SET NULL,
+  CONSTRAINT fk_ai_usage_customer_user
+    FOREIGN KEY (customer_id) REFERENCES customer_users (id)
     ON UPDATE CASCADE
     ON DELETE SET NULL
 ) ENGINE = InnoDB

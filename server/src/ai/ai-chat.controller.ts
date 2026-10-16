@@ -6,38 +6,42 @@ import {
   Post,
   Query,
   UploadedFiles,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { PaginationQueryDto } from '../common/pagination/pagination-query.dto';
-import { AdminUser } from '../users/entities/admin-user.entity';
+import { CurrentMobileCustomer } from '../mobile-auth/decorators/current-mobile-customer.decorator';
+import { MobileAuthGuard } from '../mobile-auth/guards/mobile-auth.guard';
 import { AiChatService, UploadedTextFile } from './ai-chat.service';
 import { AiChatRequestDto } from './dto/ai-chat-request.dto';
 
-@ApiTags('admin / ai-chat')
+@ApiTags('mobile / ai-chat')
 @ApiBearerAuth()
+@Public()
+@UseGuards(MobileAuthGuard)
 @Controller('ai/chat')
 export class AiChatController {
   constructor(private readonly chatService: AiChatService) {}
 
   @Post()
   @ApiOperation({ summary: '发送聊天消息' })
-  chat(@Body() chatRequestDto: AiChatRequestDto, @CurrentUser() admin: AdminUser) {
-    return this.chatService.chat(chatRequestDto, admin.id);
+  chat(@Body() chatRequestDto: AiChatRequestDto, @CurrentMobileCustomer() customerId: string) {
+    return this.chatService.chat(chatRequestDto, customerId);
   }
 
   @Get('sessions')
-  @ApiOperation({ summary: '分页查询当前管理员聊天会话' })
-  sessions(@Query() query: PaginationQueryDto, @CurrentUser() admin: AdminUser) {
-    return this.chatService.findSessions(query, admin.id);
+  @ApiOperation({ summary: '分页查询当前移动端用户聊天会话' })
+  sessions(@Query() query: PaginationQueryDto, @CurrentMobileCustomer() customerId: string) {
+    return this.chatService.findSessions(query, customerId);
   }
 
   @Get('sessions/:sessionId/messages')
   @ApiOperation({ summary: '查询聊天会话消息' })
-  messages(@Param('sessionId') sessionId: string, @CurrentUser() admin: AdminUser) {
-    return this.chatService.findMessages(sessionId, admin.id);
+  messages(@Param('sessionId') sessionId: string, @CurrentMobileCustomer() customerId: string) {
+    return this.chatService.findMessages(sessionId, customerId);
   }
 
   @Post('summary')
@@ -62,9 +66,9 @@ export class AiChatController {
     @UploadedFiles() files: UploadedTextFile[],
     @Body('prompt') prompt: string | undefined,
     @Body('modelConfigId') modelConfigId: string | undefined,
-    @CurrentUser() admin: AdminUser,
+    @CurrentMobileCustomer() customerId: string,
   ) {
-    return this.chatService.summarizeFiles(files, prompt, admin.id, modelConfigId);
+    return this.chatService.summarizeFiles(files, prompt, customerId, modelConfigId);
   }
 
   @Post('one-shot')
@@ -88,8 +92,8 @@ export class AiChatController {
     @UploadedFiles() files: UploadedTextFile[],
     @Body('prompt') prompt: string | undefined,
     @Body('modelConfigId') modelConfigId: string | undefined,
-    @CurrentUser() admin: AdminUser,
+    @CurrentMobileCustomer() customerId: string,
   ) {
-    return this.chatService.oneShot(files, prompt, admin.id, modelConfigId);
+    return this.chatService.oneShot(files, prompt, customerId, modelConfigId);
   }
 }

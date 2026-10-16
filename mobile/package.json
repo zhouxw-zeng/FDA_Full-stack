@@ -27,8 +27,17 @@
     "@dcloudio/uni-components": "vue3",
     "@dcloudio/uni-h5": "vue3",
     "@dcloudio/uni-mp-weixin": "vue3",
+    "@socket.io/component-emitter": "3.1.2",
+    "debug": "4.4.3",
+    "engine.io-client": "6.6.3",
+    "engine.io-parser": "5.2.3",
+    "ms": "2.1.3",
     "pinia": "2.1.7",
-    "vue": "3.4.21"
+    "socket.io-client": "4.8.4",
+    "socket.io-parser": "4.2.7",
+    "vue": "3.4.21",
+    "ws": "8.18.3",
+    "xmlhttprequest-ssl": "2.1.2"
   },
   "devDependencies": {
     "@dcloudio/types": "3.4.31",

@@ -10,7 +10,7 @@ export interface UsageRecordInput {
   providerCode: string;
   modelName: string;
   scene: string;
-  requestId?: string;
+  requestId?: string | null;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
@@ -18,6 +18,7 @@ export interface UsageRecordInput {
   status: 'success' | 'failed';
   errorMessage?: string;
   adminUserId?: string;
+  customerId?: string;
 }
 
 @Injectable()
@@ -33,6 +34,7 @@ export class AiUsageService {
       requestId: input.requestId ?? null,
       errorMessage: input.errorMessage ?? null,
       adminUserId: input.adminUserId ?? null,
+      customerId: input.customerId ?? null,
     });
 
     return this.usageRepository.save(record);
@@ -83,6 +85,7 @@ export class AiUsageService {
         latencyMs: record.latencyMs,
         status: record.status,
         errorMessage: record.errorMessage,
+        customerId: record.customerId,
         createdAt: record.createdAt,
       })),
       total,

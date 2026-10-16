@@ -2,11 +2,13 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.useWebSocketAdapter(new IoAdapter(app));
   const configService = app.get(ConfigService);
 
   app.setGlobalPrefix('api');
@@ -47,7 +49,6 @@ async function bootstrap(): Promise<void> {
     .addTag('admin / ads', '管理后台 / 广告管理')
     .addTag('admin / ai-models', '管理后台 / AI 模型')
     .addTag('admin / ai-skills', '管理后台 / AI Skills')
-    .addTag('admin / ai-chat', '管理后台 / AI 问答')
     .addTag('admin / ai-usage', '管理后台 / AI 用量')
     .addTag('admin / ai-quota', '管理后台 / AI 额度')
     .addTag('admin / files', '管理后台 / 文件管理')
@@ -56,6 +57,7 @@ async function bootstrap(): Promise<void> {
     .addTag('mobile / customers', '移动端 / C 端用户')
     .addTag('mobile / auth', '移动端 / 认证')
     .addTag('mobile / forum', '移动端 / 论坛动态')
+    .addTag('mobile / ai-chat', '移动端 / AI 问答')
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   (swaggerDocument as unknown as Record<string, unknown>)['x-tagGroups'] = [
@@ -72,7 +74,6 @@ async function bootstrap(): Promise<void> {
         'admin / ads',
         'admin / ai-models',
         'admin / ai-skills',
-        'admin / ai-chat',
         'admin / ai-usage',
         'admin / ai-quota',
         'admin / files',
@@ -82,7 +83,7 @@ async function bootstrap(): Promise<void> {
     },
     {
       name: '移动端（mobile）',
-      tags: ['mobile / auth', 'mobile / customers', 'mobile / forum'],
+      tags: ['mobile / auth', 'mobile / customers', 'mobile / forum', 'mobile / ai-chat'],
     },
   ];
   SwaggerModule.setup('swagger/docs', app, swaggerDocument);

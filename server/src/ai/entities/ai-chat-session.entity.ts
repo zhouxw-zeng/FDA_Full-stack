@@ -11,8 +11,11 @@ export class AiChatSession {
   @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
   id: string;
 
-  @Column({ name: 'admin_user_id', type: 'bigint', unsigned: true })
-  adminUserId: string;
+  @Column({ name: 'admin_user_id', type: 'bigint', unsigned: true, nullable: true })
+  adminUserId: string | null;
+
+  @Column({ name: 'customer_id', type: 'bigint', unsigned: true, nullable: true })
+  customerId: string | null;
 
   @Column({ name: 'model_config_id', type: 'bigint', unsigned: true, nullable: true })
   modelConfigId: string | null;

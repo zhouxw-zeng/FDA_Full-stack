@@ -167,7 +167,16 @@ export interface AiChatMessage {
   id: string;
   role: ChatRole;
   content: string;
+  attachments?: Record<string, unknown> | null;
   createdAt: string;
+}
+
+export interface AiChatSession {
+  id: string;
+  modelConfigId: string | null;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AiChatRequest {
