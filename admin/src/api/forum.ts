@@ -19,7 +19,10 @@ function normalizeDynamic(dynamic: ForumDynamic): ForumDynamic {
     typeId: Number(dynamic.typeId),
     likeCount: Number(dynamic.likeCount),
     commentCount: Number(dynamic.commentCount),
+    favoriteCount: Number(dynamic.favoriteCount),
     shareCount: Number(dynamic.shareCount),
+    liked: Boolean(dynamic.liked),
+    favorited: Boolean(dynamic.favorited),
     enabled: Number(dynamic.enabled) === 1 ? 1 : 0,
   };
 }

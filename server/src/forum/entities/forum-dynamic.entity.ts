@@ -62,6 +62,9 @@ export class ForumDynamic {
   @Column({ name: 'comment_count', type: 'int', unsigned: true, default: 0 })
   commentCount: number;
 
+  @Column({ name: 'favorite_count', type: 'int', unsigned: true, default: 0 })
+  favoriteCount: number;
+
   @Column({ name: 'share_count', type: 'int', unsigned: true, default: 0 })
   shareCount: number;
 

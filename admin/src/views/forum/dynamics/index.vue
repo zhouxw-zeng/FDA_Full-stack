@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { Delete, Picture, Star, VideoPause, VideoPlay, View } from '@element-plus/icons-vue';
+import {
+  Collection,
+  Delete,
+  Picture,
+  Share,
+  Star,
+  VideoPause,
+  VideoPlay,
+  View,
+} from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 import {
@@ -50,7 +59,7 @@ const columns: TableColumn[] = [
   { prop: 'media', label: '素材', width: 110, slot: 'media' },
   { prop: 'author.nickname', label: '发布人', width: 130, slot: 'author' },
   { prop: 'typeName', label: '类型', width: 100 },
-  { prop: 'engagement', label: '互动', width: 110, slot: 'engagement' },
+  { prop: 'engagement', label: '互动', width: 190, slot: 'engagement' },
   { prop: 'createdAt', label: '发布时间', width: 120, slot: 'createdAt' },
   // 审核与展示合并成一列，避免状态列被挤到横向滚动区
   { prop: 'status', label: '状态', width: 110, slot: 'status', align: 'center' },
@@ -294,6 +303,8 @@ onMounted(async () => {
         <div class="cell-engagement">
           <span><el-icon><Star /></el-icon>{{ (row as ForumDynamic).likeCount }}</span>
           <span><el-icon><Picture /></el-icon>{{ (row as ForumDynamic).commentCount }}</span>
+          <span><el-icon><Collection /></el-icon>{{ (row as ForumDynamic).favoriteCount }}</span>
+          <span><el-icon><Share /></el-icon>{{ (row as ForumDynamic).shareCount }}</span>
         </div>
       </template>
 
@@ -369,6 +380,7 @@ onMounted(async () => {
           <dl class="detail__stats">
             <div><dt>点赞</dt><dd>{{ detailState.target.likeCount }}</dd></div>
             <div><dt>评论</dt><dd>{{ detailState.target.commentCount }}</dd></div>
+            <div><dt>收藏</dt><dd>{{ detailState.target.favoriteCount }}</dd></div>
             <div><dt>转发</dt><dd>{{ detailState.target.shareCount }}</dd></div>
           </dl>
 

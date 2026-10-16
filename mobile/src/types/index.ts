@@ -104,6 +104,7 @@ export interface ForumDynamicAuthor {
   id: string;
   nickname: string;
   avatar?: string | null;
+  vipLevel?: number;
 }
 
 export interface ForumDynamic {
@@ -117,7 +118,10 @@ export interface ForumDynamic {
   topic: string;
   likeCount: number;
   commentCount: number;
+  favoriteCount: number;
   shareCount: number;
+  liked: boolean;
+  favorited: boolean;
   createdAt: string;
   pinned: boolean;
   auditStatus: 'pending' | 'approved' | 'rejected';
@@ -130,6 +134,31 @@ export interface ForumDynamicQuery extends PageQuery {
   pinned?: boolean;
   auditStatus?: 'pending' | 'approved' | 'rejected';
   enabled?: number;
+}
+
+export interface ForumComment {
+  id: string;
+  dynamicId: string;
+  rootId: string | null;
+  parentId: string | null;
+  content: string | null;
+  deleted: boolean;
+  author: ForumDynamicAuthor | null;
+  replyToCustomerId: string | null;
+  replyCount: number;
+  likeCount: number;
+  createdAt: string;
+  isOwn: boolean;
+}
+
+export interface ForumInteractionInfo {
+  dynamicId: string;
+  liked: boolean;
+  favorited: boolean;
+  likeCount: number;
+  commentCount: number;
+  favoriteCount: number;
+  shareCount: number;
 }
 
 export type ChatRole = 'system' | 'user' | 'assistant';

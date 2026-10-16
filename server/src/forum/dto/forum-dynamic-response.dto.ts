@@ -29,6 +29,9 @@ export class ForumDynamicAuthorResponseDto {
 
   @ApiProperty({ example: '', nullable: true })
   avatar: string;
+
+  @ApiProperty({ example: 4, description: '用户 VIP 等级' })
+  vipLevel: number;
 }
 
 export class ForumDynamicResponseDto {
@@ -59,8 +62,17 @@ export class ForumDynamicResponseDto {
   @ApiProperty({ example: 96 })
   commentCount: number;
 
+  @ApiProperty({ example: 46 })
+  favoriteCount: number;
+
   @ApiProperty({ example: 42 })
   shareCount: number;
+
+  @ApiProperty({ example: false })
+  liked: boolean;
+
+  @ApiProperty({ example: false })
+  favorited: boolean;
 
   @ApiProperty({ example: '2026-10-13T08:00:00.000Z' })
   createdAt: Date;

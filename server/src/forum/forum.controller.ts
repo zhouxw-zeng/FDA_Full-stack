@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiExtraModels,
@@ -10,15 +10,23 @@ import {
 import { apiDataResponse } from '../common/swagger/api-data-response';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentMobileCustomer } from '../mobile-auth/decorators/current-mobile-customer.decorator';
 import { MobileAuthGuard } from '../mobile-auth/guards/mobile-auth.guard';
 import { AdminUser } from '../users/entities/admin-user.entity';
 import { AuditForumDynamicDto } from './dto/audit-forum-dynamic.dto';
 import { DeleteForumDynamicResponseDto } from './dto/delete-forum-dynamic-response.dto';
+import { CreateForumCommentDto } from './dto/create-forum-comment.dto';
+import { ForumFavoriteDto } from './dto/forum-favorite.dto';
+import { ForumInteractionDto } from './dto/forum-interaction.dto';
 import { ForumDynamicPageResponseDto } from './dto/forum-dynamic-page-response.dto';
 import { ForumDynamicResponseDto } from './dto/forum-dynamic-response.dto';
+import { QueryForumCommentDto } from './dto/query-forum-comment.dto';
 import { QueryForumDynamicDto } from './dto/query-forum-dynamic.dto';
+import { ShareForumDynamicDto } from './dto/share-forum-dynamic.dto';
 import { UpdateForumDynamicStatusDto } from './dto/update-forum-dynamic-status.dto';
 import { UpdateForumDynamicDto } from './dto/update-forum-dynamic.dto';
+import { ForumCommentsService } from './forum-comments.service';
+import { ForumInteractionsService } from './forum-interactions.service';
 import { ForumService } from './forum.service';
 
 @ApiTags('mobile / forum')
@@ -26,7 +34,11 @@ import { ForumService } from './forum.service';
 @ApiExtraModels(ForumDynamicResponseDto, ForumDynamicPageResponseDto, DeleteForumDynamicResponseDto)
 @Controller('forum')
 export class ForumController {
-  constructor(private readonly forumService: ForumService) {}
+  constructor(
+    private readonly forumService: ForumService,
+    private readonly interactionsService: ForumInteractionsService,
+    private readonly commentsService: ForumCommentsService,
+  ) {}
 
   @Get('dynamics')
   @Public()
@@ -37,8 +49,75 @@ export class ForumController {
       description: '查询成功',
     }),
   )
-  findAll(@Query() queryForumDynamicDto: QueryForumDynamicDto) {
-    return this.forumService.findAll(queryForumDynamicDto);
+  findAll(
+    @Query() queryForumDynamicDto: QueryForumDynamicDto,
+    @CurrentMobileCustomer() customerId?: string,
+  ) {
+    return this.forumService.findAll(queryForumDynamicDto, customerId);
+  }
+
+  @Put('dynamics/like')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '点赞或取消点赞动态' })
+  toggleLike(@Body() dto: ForumInteractionDto, @CurrentMobileCustomer() customerId: string) {
+    return this.interactionsService.toggleLike(dto, customerId);
+  }
+
+  @Put('dynamics/favorite')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '收藏或取消收藏动态' })
+  toggleFavorite(@Body() dto: ForumFavoriteDto, @CurrentMobileCustomer() customerId: string) {
+    return this.interactionsService.toggleFavorite(dto, customerId);
+  }
+
+  @Post('dynamics/share')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '记录动态分享事件' })
+  share(@Body() dto: ShareForumDynamicDto, @CurrentMobileCustomer() customerId: string) {
+    return this.interactionsService.share(dto, customerId);
+  }
+
+  @Post('comments')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '发表评论或回复' })
+  createComment(@Body() dto: CreateForumCommentDto, @CurrentMobileCustomer() customerId: string) {
+    return this.commentsService.create(dto, customerId);
+  }
+
+  @Get('dynamics/:id/comments')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '分页查询动态顶级评论' })
+  findComments(
+    @Param('id') id: string,
+    @Query() query: QueryForumCommentDto,
+    @CurrentMobileCustomer() customerId?: string,
+  ) {
+    return this.commentsService.findTopLevel(id, query, customerId);
+  }
+
+  @Get('comments/:rootId/replies')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '分页查询评论回复' })
+  findReplies(
+    @Param('rootId') rootId: string,
+    @Query() query: QueryForumCommentDto,
+    @CurrentMobileCustomer() customerId?: string,
+  ) {
+    return this.commentsService.findReplies(rootId, query, customerId);
+  }
+
+  @Delete('comments/:id')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '删除自己的评论' })
+  deleteComment(@Param('id') id: string, @CurrentMobileCustomer() customerId: string) {
+    return this.commentsService.remove(id, customerId);
   }
 
   @Put('dynamics/audit')
@@ -75,8 +154,8 @@ export class ForumController {
       description: '查询成功',
     }),
   )
-  findOne(@Param('id') id: string) {
-    return this.forumService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentMobileCustomer() customerId?: string) {
+    return this.forumService.findOne(id, customerId);
   }
 
   @Delete('dynamics/:id')

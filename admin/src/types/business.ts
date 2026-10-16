@@ -34,7 +34,10 @@ export interface ForumDynamic {
   topic: string;
   likeCount: number;
   commentCount: number;
+  favoriteCount: number;
   shareCount: number;
+  liked: boolean;
+  favorited: boolean;
   createdAt: string;
   pinned: boolean;
   auditStatus: AuditStatus;

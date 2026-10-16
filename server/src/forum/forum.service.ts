@@ -5,13 +5,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { createPaginationResult, resolvePagination } from '../common/pagination/pagination';
 import { AuditForumDynamicDto } from './dto/audit-forum-dynamic.dto';
 import { QueryForumDynamicDto } from './dto/query-forum-dynamic.dto';
 import { UpdateForumDynamicStatusDto } from './dto/update-forum-dynamic-status.dto';
 import { UpdateForumDynamicDto } from './dto/update-forum-dynamic.dto';
 import { ForumDynamicType } from './entities/forum-dynamic-type.entity';
+import { ForumDynamicFavorite } from './entities/forum-dynamic-favorite.entity';
+import { ForumDynamicLike } from './entities/forum-dynamic-like.entity';
 import { ForumDynamic } from './entities/forum-dynamic.entity';
 import { ForumChangeLogsService } from './forum-change-logs.service';
 
@@ -22,10 +24,14 @@ export class ForumService {
     private readonly dynamicsRepository: Repository<ForumDynamic>,
     @InjectRepository(ForumDynamicType)
     private readonly typesRepository: Repository<ForumDynamicType>,
+    @InjectRepository(ForumDynamicLike)
+    private readonly likesRepository: Repository<ForumDynamicLike>,
+    @InjectRepository(ForumDynamicFavorite)
+    private readonly favoritesRepository: Repository<ForumDynamicFavorite>,
     private readonly changeLogsService: ForumChangeLogsService,
   ) {}
 
-  async findAll(queryForumDynamicDto: QueryForumDynamicDto) {
+  async findAll(queryForumDynamicDto: QueryForumDynamicDto, customerId?: string) {
     const { keyword, topic, typeId, pinned, auditStatus, enabled } = queryForumDynamicDto;
     const { page, size, skip } = resolvePagination(queryForumDynamicDto);
     const query = this.dynamicsRepository
@@ -62,16 +68,23 @@ export class ForumService {
       .take(size)
       .getManyAndCount();
 
+    const interactionStates = await this.getInteractionStates(
+      list.map((dynamic) => dynamic.id),
+      customerId,
+    );
+
     return createPaginationResult(
-      list.map((dynamic) => this.toResponse(dynamic)),
+      list.map((dynamic) => this.toResponse(dynamic, interactionStates.get(dynamic.id))),
       total,
       page,
       size,
     );
   }
 
-  async findOne(id: string) {
-    return this.toResponse(await this.getDynamicOrThrow(id));
+  async findOne(id: string, customerId?: string) {
+    const dynamic = await this.getDynamicOrThrow(id);
+    const interactionStates = await this.getInteractionStates([id], customerId);
+    return this.toResponse(dynamic, interactionStates.get(id));
   }
 
   async remove(id: string) {
@@ -190,7 +203,13 @@ export class ForumService {
     return dynamic;
   }
 
-  private toResponse(dynamic: ForumDynamic) {
+  private toResponse(
+    dynamic: ForumDynamic,
+    interactionState: { liked: boolean; favorited: boolean } = {
+      liked: false,
+      favorited: false,
+    },
+  ) {
     return {
       id: dynamic.id,
       content: dynamic.content,
@@ -201,15 +220,47 @@ export class ForumService {
         id: dynamic.customer.id,
         nickname: dynamic.customer.nickname,
         avatar: dynamic.customer.avatar ?? '',
+        vipLevel: dynamic.customer.vipLevel,
       },
       topic: dynamic.topic,
       likeCount: dynamic.likeCount,
       commentCount: dynamic.commentCount,
+      favoriteCount: dynamic.favoriteCount,
       shareCount: dynamic.shareCount,
+      liked: interactionState.liked,
+      favorited: interactionState.favorited,
       createdAt: dynamic.createdAt,
       pinned: dynamic.pinned === 1,
       auditStatus: dynamic.auditStatus,
       enabled: dynamic.enabled,
     };
+  }
+
+  private async getInteractionStates(dynamicIds: string[], customerId?: string) {
+    const states = new Map(
+      dynamicIds.map((dynamicId) => [dynamicId, { liked: false, favorited: false }]),
+    );
+
+    if (!customerId || dynamicIds.length === 0) {
+      return states;
+    }
+
+    const [likes, favorites] = await Promise.all([
+      this.likesRepository.find({
+        where: { dynamicId: In(dynamicIds), customerId },
+      }),
+      this.favoritesRepository.find({
+        where: { dynamicId: In(dynamicIds), customerId },
+      }),
+    ]);
+
+    for (const like of likes) {
+      states.get(like.dynamicId)!.liked = true;
+    }
+    for (const favorite of favorites) {
+      states.get(favorite.dynamicId)!.favorited = true;
+    }
+
+    return states;
   }
 }

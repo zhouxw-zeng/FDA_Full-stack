@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { ChatDotRound, Refresh, Share, Star } from '@element-plus/icons-vue';
+import { ChatDotRound, Collection, Refresh, Share, Star } from '@element-plus/icons-vue';
 
 import { fetchForumDynamicTypes, fetchForumDynamics } from '@/api/forum';
 import { MediaPreviewDialog, MediaThumb, PageHeader, StatusTag, UserAvatar } from '@/components';
@@ -143,6 +143,9 @@ onMounted(async () => {
                   <span><el-icon><Star /></el-icon>{{ formatCompactNumber(active.likeCount) }}</span>
                   <span>
                     <el-icon><ChatDotRound /></el-icon>{{ formatCompactNumber(active.commentCount) }}
+                  </span>
+                  <span>
+                    <el-icon><Collection /></el-icon>{{ formatCompactNumber(active.favoriteCount) }}
                   </span>
                   <span><el-icon><Share /></el-icon>{{ formatCompactNumber(active.shareCount) }}</span>
                 </footer>
