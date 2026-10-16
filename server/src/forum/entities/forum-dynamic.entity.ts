@@ -14,6 +14,7 @@ export interface ForumMediaItem {
   id: string;
   kind: 'album' | 'video';
   title: string;
+  url?: string;
   seed: number;
   duration?: number;
   size: number;

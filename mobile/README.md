@@ -18,6 +18,7 @@ pnpm lint
 - API 地址：`.env` 中的 `VITE_API_BASE_URL`，默认 `/api`，与后台保持一致。
 - 本地文件地址：`.env` 中的 `VITE_FILE_BASE_URL`，用于把 `/local-files/...` 头像地址解析为可访问的完整地址。
 - H5 路由前缀：`.env` 中的 `VITE_ROUTER_BASE`，默认 `/mobile/`，已同步到 `manifest.json`。
+- H5 开发端口：`.env` 中的 `DEV_PORT`，默认 `5173`；端口被占用时会自动递增到下一个可用端口。
 - 微信小程序 `appid`、Android 打包配置填写在 `manifest.json`。
 
 底部导航使用 `src/static/navtab` 下的普通与 `-active` 图标，采用纯图标模式。
@@ -33,3 +34,19 @@ pnpm lint
 - `GET /customers/me`
 
 个人信息和用户信息通过 `src/utils/cache.ts` 统一缓存，退出登录时会清空认证 token 与业务缓存。
+
+## 通用图标
+
+图标使用本地 Lucide 子集字体，避免引入大量 PNG 导致包体积膨胀。
+
+```vue
+<app-icon name="search" :size="40" color="#b76e79" />
+```
+
+重新生成图标：
+
+```bash
+pnpm icons:build
+```
+
+图标名称定义在 `src/constants/icons.ts`，生成脚本为 `scripts/generate-icons.mjs`。

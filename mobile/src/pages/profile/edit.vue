@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 
-import { fetchAvatarOptions, resolveFileUrl } from '@/api/files';
+import { resolveFileUrl } from '@/api/files';
 import { useUserStore } from '@/stores/user';
-import type { AvatarOption, UploadedFileInfo } from '@/types';
+import type { UploadedFileInfo } from '@/types';
 
 defineOptions({ name: 'ProfileEdit' });
 
 const userStore = useUserStore();
 const saving = ref(false);
 const avatarPanelVisible = ref(false);
-const avatarOptions = ref<AvatarOption[]>([]);
 const avatarUrl = ref('');
 
 const form = reactive({
@@ -35,14 +34,6 @@ function syncForm(): void {
   avatarUrl.value = resolveFileUrl(form.avatar);
 }
 
-async function loadAvatarOptions(): Promise<void> {
-  try {
-    avatarOptions.value = await fetchAvatarOptions();
-  } catch {
-    avatarOptions.value = [];
-  }
-}
-
 async function initialize(): Promise<void> {
   if (!userStore.isLoggedIn) {
     uni.showToast({ title: '请先登录', icon: 'none' });
@@ -51,10 +42,7 @@ async function initialize(): Promise<void> {
   }
 
   syncForm();
-  await Promise.all([
-    userStore.loadProfile().catch(() => undefined),
-    loadAvatarOptions(),
-  ]);
+  await userStore.loadProfile().catch(() => undefined);
   syncForm();
 }
 
@@ -278,38 +266,6 @@ onMounted(() => {
           </view>
         </view>
 
-        <view v-if="avatarPanelVisible" class="avatar-panel">
-          <view class="avatar-panel-head">
-            <text class="avatar-panel-title">选择头像</text>
-            <text class="avatar-panel-close" @tap="toggleAvatarPanel">收起</text>
-          </view>
-
-          <view v-if="avatarOptions.length" class="avatar-grid">
-            <view
-              v-for="option in avatarOptions"
-              :key="option.url"
-              class="avatar-option"
-              :class="{ 'avatar-option--active': form.avatar === option.url }"
-              @tap="selectAvatar(option.url)"
-            >
-              <image
-                class="avatar-option-image"
-                :src="resolveFileUrl(option.url)"
-                mode="aspectFill"
-              />
-            </view>
-          </view>
-
-          <view class="upload-row">
-            <common-upload
-              label="上传头像"
-              loading-text="上传中"
-              storage-address="user/avatar"
-              :file-name="`avatar-${userStore.user?.id ?? 'user'}`"
-              @success="handleUploadSuccess"
-            />
-          </view>
-        </view>
       </view>
     </scroll-view>
 
@@ -318,6 +274,14 @@ onMounted(() => {
         {{ saving ? '保存中' : '保存' }}
       </button>
     </view>
+
+    <avatar-picker-popup
+      v-model:visible="avatarPanelVisible"
+      :avatar="form.avatar"
+      :file-name="`avatar-${userStore.user?.id ?? 'user'}`"
+      @select="selectAvatar"
+      @uploaded="handleUploadSuccess"
+    />
   </view>
 </template>
 

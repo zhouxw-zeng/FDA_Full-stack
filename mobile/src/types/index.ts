@@ -94,6 +94,7 @@ export interface ForumMediaItem {
   id: string;
   kind: 'album' | 'video';
   title: string;
+  url?: string;
   seed: number;
   duration?: number;
   size: number;
@@ -107,6 +108,7 @@ export interface ForumDynamicAuthor {
 
 export interface ForumDynamic {
   id: string;
+  title?: string;
   content: string;
   media: ForumMediaItem[];
   author: ForumDynamicAuthor;

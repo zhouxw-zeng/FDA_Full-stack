@@ -9,5 +9,6 @@ export default defineComponent({
 </script>
 
 <style lang="scss">
+@import './styles/iconfont.scss';
 @import './styles/index.scss';
 </style>

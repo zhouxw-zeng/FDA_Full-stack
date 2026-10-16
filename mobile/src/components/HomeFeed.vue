@@ -1,11 +1,23 @@
 <script setup lang="ts">
-defineOptions({ name: 'HomeFeed' });
-
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { fetchForumDynamics } from '@/api/forum';
+import { resolveFileUrl } from '@/api/files';
 import { useUserStore } from '@/stores/user';
 import type { ForumDynamic } from '@/types';
+
+defineOptions({ name: 'HomeFeed' });
+
+interface FeedCard extends ForumDynamic {
+  cardTitle: string;
+  imageHeight: number;
+  colorIndex: number;
+}
+
+interface WaterfallColumns {
+  left: FeedCard[];
+  right: FeedCard[];
+}
 
 const userStore = useUserStore();
 const items = ref<ForumDynamic[]>([]);
@@ -14,6 +26,40 @@ const page = ref(1);
 const total = ref(0);
 const size = 10;
 const hasMore = computed(() => items.value.length < total.value);
+
+function toFeedCard(item: ForumDynamic, index: number): FeedCard {
+  const firstMedia = item.media?.[0];
+  const seed = firstMedia?.seed ?? index + 1;
+
+  return {
+    ...item,
+    cardTitle: item.title || firstMedia?.title || item.content,
+    imageHeight: 240 + (seed % 3) * 70,
+    colorIndex: index % 3,
+  };
+}
+
+const columns = computed<WaterfallColumns>(() => {
+  const left: FeedCard[] = [];
+  const right: FeedCard[] = [];
+  let leftHeight = 0;
+  let rightHeight = 0;
+
+  items.value.forEach((item, index) => {
+    const card = toFeedCard(item, index);
+    const estimatedHeight = card.imageHeight + 220;
+
+    if (leftHeight <= rightHeight) {
+      left.push(card);
+      leftHeight += estimatedHeight;
+    } else {
+      right.push(card);
+      rightHeight += estimatedHeight;
+    }
+  });
+
+  return { left, right };
+});
 
 async function loadFeed(reset = false): Promise<void> {
   if (!userStore.isLoggedIn || loading.value) {
@@ -52,6 +98,10 @@ function goLogin(): void {
   uni.navigateTo({ url: '/pages/login/index' });
 }
 
+function goDetail(id: string): void {
+  uni.navigateTo({ url: `/pages/dynamic/detail?id=${encodeURIComponent(id)}` });
+}
+
 function formatCount(value: number): string {
   if (value >= 10_000) {
     return `${(value / 10_000).toFixed(1)}w`;
@@ -75,43 +125,84 @@ watch(
 
 <template>
   <view class="feed-panel panel">
-    <view class="panel-header">
-      <view class="header-copy">
-        <text class="eyebrow">Salon de Lumiere</text>
-        <text class="page-title">流光动态</text>
-      </view>
-      <button v-if="userStore.isLoggedIn" class="mini-button" @tap="loadFeed(true)">刷新</button>
-    </view>
+    <view class="search-placeholder"></view>
 
     <scroll-view
       v-if="userStore.isLoggedIn"
-      class="feed-scroll"
+      class="waterfall-scroll"
       scroll-y
       @scrolltolower="loadMore"
     >
-      <view v-if="loading && items.length === 0" class="state-panel rococo-panel">
-        <text class="state-text">正在整理今日动态</text>
-      </view>
-      <view v-else-if="items.length === 0" class="state-panel rococo-panel">
-        <text class="state-text">暂无动态</text>
-      </view>
+      <view v-if="loading && items.length === 0" class="state-panel">正在加载动态</view>
+      <view v-else-if="items.length === 0" class="state-panel">暂无动态</view>
 
-      <view v-for="item in items" :key="item.id" class="feed-card rococo-panel">
-        <view class="feed-card-top">
-          <view class="author-mark">{{ item.author.nickname.slice(0, 1) }}</view>
-          <view class="author-copy">
-            <text class="author-name">{{ item.author.nickname }}</text>
-            <text class="feed-topic">{{ item.topic }}</text>
+      <view v-else class="waterfall">
+        <view class="waterfall-column">
+          <view
+            v-for="card in columns.left"
+            :key="card.id"
+            class="feed-card"
+            @tap="goDetail(card.id)"
+          >
+            <view class="card-image-wrap">
+              <image
+                v-if="card.media?.[0]?.url"
+                class="card-image"
+                :src="resolveFileUrl(card.media[0].url)"
+                mode="aspectFill"
+                :style="{ height: `${card.imageHeight}rpx` }"
+              />
+              <view
+                v-else
+                class="card-placeholder"
+                :class="`card-placeholder--${card.colorIndex}`"
+                :style="{ height: `${card.imageHeight}rpx` }"
+              >
+                <text class="placeholder-topic">{{ card.topic }}</text>
+              </view>
+            </view>
+
+            <text class="card-title">{{ card.cardTitle }}</text>
+
+            <view class="card-footer">
+              <text class="author-name">{{ card.author.nickname }}</text>
+              <text class="like-count">赞 {{ formatCount(card.likeCount) }}</text>
+            </view>
           </view>
-          <text v-if="item.pinned" class="pinned-mark">置顶</text>
         </view>
 
-        <text class="feed-content">{{ item.content }}</text>
+        <view class="waterfall-column">
+          <view
+            v-for="card in columns.right"
+            :key="card.id"
+            class="feed-card"
+            @tap="goDetail(card.id)"
+          >
+            <view class="card-image-wrap">
+              <image
+                v-if="card.media?.[0]?.url"
+                class="card-image"
+                :src="resolveFileUrl(card.media[0].url)"
+                mode="aspectFill"
+                :style="{ height: `${card.imageHeight}rpx` }"
+              />
+              <view
+                v-else
+                class="card-placeholder"
+                :class="`card-placeholder--${card.colorIndex}`"
+                :style="{ height: `${card.imageHeight}rpx` }"
+              >
+                <text class="placeholder-topic">{{ card.topic }}</text>
+              </view>
+            </view>
 
-        <view class="feed-meta">
-          <text>赞 {{ formatCount(item.likeCount) }}</text>
-          <text>评 {{ formatCount(item.commentCount) }}</text>
-          <text>享 {{ formatCount(item.shareCount) }}</text>
+            <text class="card-title">{{ card.cardTitle }}</text>
+
+            <view class="card-footer">
+              <text class="author-name">{{ card.author.nickname }}</text>
+              <text class="like-count">赞 {{ formatCount(card.likeCount) }}</text>
+            </view>
+          </view>
         </view>
       </view>
 
@@ -133,153 +224,148 @@ watch(
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  background: #f7f8fa;
 }
 
-.panel-header {
-  display: flex;
+.search-placeholder {
   flex: none;
-  align-items: center;
-  justify-content: space-between;
-  padding: 28rpx 32rpx 20rpx;
+  width: 100%;
+  height: 120rpx;
+  box-sizing: border-box;
+  background: #ffffff;
+  border-bottom: 1rpx solid #f0f0f0;
 }
 
-.header-copy {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.eyebrow {
-  color: $rococo-gold;
-  font-size: 20rpx;
-  letter-spacing: 2rpx;
-  line-height: 1.4;
-  text-transform: uppercase;
-}
-
-.page-title {
-  margin-top: 4rpx;
-  color: $rococo-ink;
-  font-size: 40rpx;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.mini-button {
-  flex: none;
-  min-width: 108rpx;
-  height: 60rpx;
-  padding: 0 24rpx;
-  color: $rococo-rose;
-  font-size: 24rpx;
-  line-height: 58rpx;
-  background: $rococo-paper;
-  border: 1rpx solid $rococo-line;
-  border-radius: 8rpx;
-}
-
-.feed-scroll {
+.waterfall-scroll {
   flex: 1;
+  width: 100%;
   min-height: 0;
-  padding: 0 28rpx 32rpx;
+  padding: 20rpx 24rpx 32rpx;
   box-sizing: border-box;
 }
 
-.feed-card {
-  margin-bottom: 20rpx;
-  padding: 26rpx;
-}
-
-.feed-card-top {
+.waterfall {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.author-mark {
+.waterfall-column {
   display: flex;
   flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 64rpx;
-  height: 64rpx;
-  color: $rococo-rose;
-  font-size: 26rpx;
-  font-weight: 600;
-  background: $rococo-blush;
-  border: 1rpx solid rgba($rococo-rose, 0.2);
-  border-radius: 8rpx;
-}
-
-.author-copy {
-  display: flex;
-  flex: 1;
   flex-direction: column;
+  width: calc(50% - 10rpx);
   min-width: 0;
-  margin-left: 18rpx;
 }
 
-.author-name {
+.waterfall-column + .waterfall-column {
+  margin-left: 20rpx;
+}
+
+.feed-card {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: 24rpx;
+}
+
+.card-image-wrap {
+  flex: none;
+  width: 100%;
+  min-height: 200rpx;
   overflow: hidden;
-  color: $rococo-ink;
-  font-size: 28rpx;
-  font-weight: 600;
+  background: #ffffff;
+  border-radius: 16rpx;
+}
+
+.card-image {
+  display: block;
+  width: 100%;
+  min-height: 200rpx;
+}
+
+.card-placeholder {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  min-height: 200rpx;
+  padding: 20rpx;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.card-placeholder--0 {
+  background: linear-gradient(150deg, #fcecc1, #e2cc9a);
+}
+
+.card-placeholder--1 {
+  background: linear-gradient(150deg, #e7e2f0, #d8c9e1);
+}
+
+.card-placeholder--2 {
+  background: linear-gradient(150deg, #f4d8d0, #d9cbc1);
+}
+
+.placeholder-topic {
+  max-width: 100%;
+  overflow: hidden;
+  color: #6a4a3a;
+  font-size: 24rpx;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.feed-topic {
-  margin-top: 4rpx;
-  color: $rococo-muted;
-  font-size: 22rpx;
-}
-
-.pinned-mark {
+.card-title {
+  display: -webkit-box;
   flex: none;
-  margin-left: 16rpx;
-  padding: 4rpx 12rpx;
-  color: $rococo-gold;
-  font-size: 20rpx;
-  background: rgba($rococo-gold-soft, 0.18);
-  border: 1rpx solid rgba($rococo-gold, 0.22);
-  border-radius: 8rpx;
+  margin-top: 14rpx;
+  max-height: 120rpx;
+  overflow: hidden;
+  color: #222222;
+  font-size: 27rpx;
+  font-weight: 600;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
-.feed-content {
-  display: block;
-  margin-top: 22rpx;
-  color: $rococo-ink;
-  font-size: 28rpx;
-  line-height: 1.7;
-  word-break: break-word;
-}
-
-.feed-meta {
+.card-footer {
   display: flex;
-  gap: 28rpx;
-  margin-top: 24rpx;
-  color: $rococo-muted;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12rpx;
+}
+
+.author-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #999999;
+  font-size: 22rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.like-count {
+  flex: none;
+  margin-left: 12rpx;
+  color: #999999;
   font-size: 22rpx;
 }
 
-.state-panel {
-  padding: 52rpx 28rpx;
-  text-align: center;
-}
-
-.state-text {
-  color: $rococo-muted;
-  font-size: 26rpx;
-}
-
+.state-panel,
 .loading-more {
-  padding: 18rpx 0 28rpx;
-  color: $rococo-muted;
-  font-size: 22rpx;
+  padding: 44rpx 0;
+  color: #999999;
+  font-size: 24rpx;
   text-align: center;
 }
 
 .guest-state {
-  margin: 28rpx;
+  margin: 32rpx;
   padding: 56rpx 36rpx;
   text-align: center;
 }

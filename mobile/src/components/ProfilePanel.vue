@@ -262,6 +262,7 @@ $radius-small: 12px;
 .promo-slide {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   justify-content: center;
   width: 100%;
   height: 100%;

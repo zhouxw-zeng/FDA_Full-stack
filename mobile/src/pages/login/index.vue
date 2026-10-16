@@ -243,6 +243,7 @@ async function submit(): Promise<void> {
 .brand-lockup {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   max-width: 84%;
   margin-bottom: 36rpx;
   margin-left: 4rpx;

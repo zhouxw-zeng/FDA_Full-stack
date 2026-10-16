@@ -12,6 +12,7 @@ export interface MediaItem {
   id: string;
   kind: MediaKind;
   title: string;
+  url?: string;
   /** 占位纹理种子，前端据此生成确定性缩略图 */
   seed: number;
   duration?: number;

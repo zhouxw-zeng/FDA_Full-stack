@@ -29,3 +29,7 @@ export async function fetchForumDynamics(
 
   return { ...result, list: result.list.map(normalizeDynamic) };
 }
+
+export async function fetchForumDynamicDetail(id: string): Promise<ForumDynamic> {
+  return normalizeDynamic(await http.get<ForumDynamic>(`/forum/dynamics/${id}`));
+}

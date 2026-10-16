@@ -53,6 +53,13 @@ const palette = computed(() => {
     role="img"
     :aria-label="props.media?.title ?? '媒体素材'"
   >
+    <img
+      v-if="props.media?.url"
+      class="media-thumb__image"
+      :src="props.media.url"
+      :alt="props.media.title"
+      loading="lazy"
+    />
     <span v-if="props.showKind" class="media-thumb__kind">
       {{ props.media?.kind === 'video' ? '视频' : '相册' }}
     </span>
@@ -100,6 +107,14 @@ const palette = computed(() => {
     background-color: rgba(12, 20, 19, 0.55);
     border-radius: var(--app-radius-sm);
     backdrop-filter: blur(2px);
+  }
+
+  &__image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   &__play {
