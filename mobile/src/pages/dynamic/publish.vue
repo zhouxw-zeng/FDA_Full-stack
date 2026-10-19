@@ -46,7 +46,12 @@ const content = ref('');
 const aiLoading = ref(false);
 const submitting = ref(false);
 
-const canSubmit = computed(() => content.value.trim().length > 0 && !submitting.value);
+const canSubmit = computed(
+  () =>
+    title.value.trim().length > 0 &&
+    content.value.trim().length > 0 &&
+    !submitting.value,
+);
 const imagePaths = computed(() =>
   media.value
     .filter((item) => item.kind === 'album')
@@ -177,7 +182,17 @@ async function ensureUploaded(): Promise<void> {
 }
 
 async function submit(): Promise<void> {
-  if (!canSubmit.value) {
+  if (submitting.value) {
+    return;
+  }
+
+  if (!title.value.trim()) {
+    uni.showToast({ title: '请填写动态标题', icon: 'none' });
+    return;
+  }
+
+  if (!content.value.trim()) {
+    uni.showToast({ title: '请填写动态内容', icon: 'none' });
     return;
   }
 
@@ -196,7 +211,7 @@ async function submit(): Promise<void> {
     }));
 
     await createForumDynamic({
-      title: title.value.trim() || undefined,
+      title: title.value.trim(),
       content: content.value.trim(),
       media: payloadMedia,
     });
@@ -267,7 +282,7 @@ function close(): void {
           class="title-input"
           type="text"
           :maxlength="200"
-          placeholder="添加标题（选填）"
+          placeholder="请输入动态标题"
         />
 
         <textarea

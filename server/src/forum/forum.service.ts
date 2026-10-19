@@ -334,7 +334,7 @@ export class ForumService {
       customerId,
       typeId: type.typeId,
       type,
-      title: createMyForumDynamicDto.title?.trim() || null,
+      title: createMyForumDynamicDto.title.trim(),
       content: createMyForumDynamicDto.content,
       media,
       topic: createMyForumDynamicDto.topic?.trim() || type.typeName,

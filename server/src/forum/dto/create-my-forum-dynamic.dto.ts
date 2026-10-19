@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
@@ -13,11 +14,12 @@ import {
 import { ForumMediaItemDto } from './forum-media-item.dto';
 
 export class CreateMyForumDynamicDto {
-  @ApiPropertyOptional({ example: '周末的海边', maxLength: 200 })
-  @IsOptional()
+  @ApiProperty({ example: '周末的海边', maxLength: 200 })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
+  @IsNotEmpty({ message: '请填写动态标题' })
   @MaxLength(200)
-  title?: string;
+  title: string;
 
   @ApiProperty({ example: '今天去海边走了走，风很舒服。', maxLength: 5000 })
   @IsString()

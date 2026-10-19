@@ -41,6 +41,8 @@ function selectTab(key: string): void {
 
 <style scoped lang="scss">
 .tab-bar {
+  position: relative;
+  z-index: 20;
   display: flex;
   flex: none;
   align-items: stretch;
@@ -86,23 +88,35 @@ function selectTab(key: string): void {
   justify-content: center;
   width: 68rpx;
   height: 68rpx;
+  margin-top: -14rpx;
+  overflow: hidden;
+  background: rgba($rococo-paper, 0.6);
+  border: 2rpx solid rgba($rococo-paper, 0.86);
   border-radius: 50%;
   transition:
     background-color 180ms ease,
     box-shadow 180ms ease,
+    border-color 180ms ease,
+    margin-top 180ms ease,
     transform 180ms ease;
 }
 
 .tab-item--active .tab-icon {
-  background: rgba($rococo-pink-light, 0.36);
+  margin-top: -30rpx;
+  background: $rococo-paper;
+  border-color: $rococo-paper;
+  border-radius: 50%;
   box-shadow:
-    0 8rpx 20rpx rgba($rococo-rose, 0.14),
-    inset 0 1rpx 0 rgba(255, 255, 255, 0.9);
-  transform: scale(1.04);
+    0 12rpx 26rpx rgba($rococo-rose, 0.28),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.94);
+  transform: scale(1.08);
 }
 
 .tab-image {
+  display: block;
   width: 100%;
   height: 100%;
+  transform: scale(1.2);
+  transform-origin: center center;
 }
 </style>

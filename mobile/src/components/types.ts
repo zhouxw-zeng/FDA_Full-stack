@@ -1,5 +1,7 @@
+export type TabKey = 'ai' | 'home' | 'chat' | 'friends' | 'profile';
+
 export interface TabItem {
-  key: 'home' | 'ai' | 'profile';
+  key: TabKey;
   label: string;
   icon: string;
   activeIcon: string;

@@ -57,21 +57,21 @@ const progressValue = computed(() =>
 const progressWidth = computed(() => `${progressValue.value}%`);
 
 const metrics: MetricItem[] = [
-  { key: 'chat', label: '聊天入口', icon: '/static/icons/message-icon.png' },
-  { key: 'publish', label: '发布动态', icon: '/static/icons/push_icon.png' },
-  { key: 'likes', label: '我的喜欢', icon: '/static/icons/likes-icon.png' },
+  { key: 'chat', label: '聊天', icon: '/static/icons/message-icon.png' },
+  { key: 'publish', label: '发布', icon: '/static/icons/push_icon.png' },
+  { key: 'likes', label: '喜欢', icon: '/static/icons/likes-icon.png' },
 ];
 
 const functionItems = computed<FunctionItem[]>(() => [
   { key: 'moments', icon: '/static/icons/my-dynamic-icon.png', label: '动态' },
-  { key: 'favorites', icon: '/static/icons/collect-icon.png', label: '我的收藏' },
+  { key: 'favorites', icon: '/static/icons/collect-icon.png', label: '收藏' },
   {
     key: 'message',
     icon: '/static/icons/message-icon.png',
-    label: '消息通知',
+    label: '消息',
     badge: unreadCount.value,
   },
-  { key: 'logout', icon: '/static/icons/loginout-icon.png', label: '退出登录' },
+  { key: 'logout', icon: '/static/icons/loginout-icon.png', label: '退出' },
 ]);
 
 function goEdit(): void {
