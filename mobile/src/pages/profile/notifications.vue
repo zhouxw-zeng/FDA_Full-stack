@@ -33,6 +33,7 @@ const typeLabels: Record<ForumNotification['type'], string> = {
   dynamic_like: '点赞',
   dynamic_comment: '评论',
   comment_reply: '回复',
+  user_follow: '关注',
 };
 
 let socketHandle: NotificationSocketHandle | null = null;
@@ -73,6 +74,9 @@ function actorAvatar(item: ForumNotification): string {
 }
 
 function dynamicTitle(item: ForumNotification): string {
+  if (item.type === 'user_follow') {
+    return '点击查看用户主页';
+  }
   return item.dynamic?.title || item.dynamic?.content || '动态已删除';
 }
 
@@ -144,7 +148,16 @@ function openNotification(item: ForumNotification): void {
     void markForumNotificationRead(item.id).catch(() => undefined);
   }
 
-  uni.navigateTo({ url: `/pages/dynamic/detail?id=${encodeURIComponent(item.dynamicId)}` });
+  if (item.type === 'user_follow') {
+    if (item.actor?.id) {
+      uni.navigateTo({ url: `/pages/social/user?id=${encodeURIComponent(item.actor.id)}` });
+    }
+    return;
+  }
+
+  if (item.dynamicId) {
+    uni.navigateTo({ url: `/pages/dynamic/detail?id=${encodeURIComponent(item.dynamicId)}` });
+  }
 }
 
 async function markAllRead(): Promise<void> {

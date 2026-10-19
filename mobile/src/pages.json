@@ -74,6 +74,22 @@
         "enablePullDownRefresh": false,
         "navigationBarTextStyle": "black"
       }
+    },
+    {
+      "path": "pages/social/search",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/social/user",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
     }
   ],
   "globalStyle": {

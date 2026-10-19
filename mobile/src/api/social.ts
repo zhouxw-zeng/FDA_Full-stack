@@ -1,6 +1,12 @@
 import { http } from './request';
 
-import type { PageResult, SocialFollowState, SocialMessage, SocialUser } from '@/types';
+import type {
+  PageResult,
+  SocialFollowState,
+  SocialMessage,
+  SocialStats,
+  SocialUser,
+} from '@/types';
 
 export function searchSocialUsers(
   keyword = '',
@@ -19,6 +25,14 @@ export function fetchSocialFriends(page = 1, size = 15): Promise<PageResult<Soci
     page,
     size,
   });
+}
+
+export function fetchSocialUser(userId: string): Promise<SocialUser> {
+  return http.get<SocialUser>(`/social/users/${userId}`);
+}
+
+export function fetchSocialStats(): Promise<SocialStats> {
+  return http.get<SocialStats>('/social/stats');
 }
 
 export function followSocialUser(targetUserId: string): Promise<SocialFollowState> {

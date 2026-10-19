@@ -187,12 +187,16 @@ export interface ForumInteractionInfo {
   shareCount: number;
 }
 
-export type ForumNotificationType = 'dynamic_like' | 'dynamic_comment' | 'comment_reply';
+export type ForumNotificationType =
+  | 'dynamic_like'
+  | 'dynamic_comment'
+  | 'comment_reply'
+  | 'user_follow';
 
 export interface ForumNotification {
   id: string;
   type: ForumNotificationType;
-  dynamicId: string;
+  dynamicId: string | null;
   targetId: string | null;
   isRead: boolean;
   createdAt: string;
@@ -231,6 +235,12 @@ export interface SocialFollowState {
   isFollowedBy: boolean;
   isMutual: boolean;
   canChat: boolean;
+}
+
+export interface SocialStats {
+  following: number;
+  followers: number;
+  dynamics: number;
 }
 
 export interface SocialMessage {

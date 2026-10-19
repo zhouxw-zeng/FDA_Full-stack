@@ -4,6 +4,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { resolveFileUrl } from '@/api/files';
 import { connectNotificationSocket, type NotificationSocketHandle } from '@/api/notification-socket';
 import { fetchUnreadNotificationCount } from '@/api/notifications';
+import { fetchSocialStats } from '@/api/social';
 import { useUserStore } from '@/stores/user';
 
 defineOptions({ name: 'ProfilePanel' });
@@ -28,6 +29,7 @@ interface MetricItem {
 const userStore = useUserStore();
 const loggingOut = ref(false);
 const unreadCount = ref(0);
+const socialStatsData = ref({ following: 0, followers: 0, dynamics: 0 });
 
 let notificationSocket: NotificationSocketHandle | null = null;
 
@@ -55,6 +57,12 @@ const progressValue = computed(() =>
   Math.min(100, Math.max(20, (userStore.user?.vipLevel ?? 1) * 20)),
 );
 const progressWidth = computed(() => `${progressValue.value}%`);
+
+const socialStats = computed(() => [
+  { key: 'following', label: '关注', value: socialStatsData.value.following },
+  { key: 'followers', label: '粉丝', value: socialStatsData.value.followers },
+  { key: 'dynamics', label: '动态', value: socialStatsData.value.dynamics },
+]);
 
 const metrics: MetricItem[] = [
   { key: 'chat', label: '聊天', icon: '/static/icons/message-icon.png' },
@@ -109,7 +117,16 @@ async function initialize(): Promise<void> {
     userStore.loadProfile().catch(() => undefined),
     userStore.loadUserInfo().catch(() => undefined),
     loadUnreadCount(),
+    loadSocialStats(),
   ]);
+}
+
+async function loadSocialStats(): Promise<void> {
+  try {
+    socialStatsData.value = await fetchSocialStats();
+  } catch {
+    socialStatsData.value = { following: 0, followers: 0, dynamics: 0 };
+  }
 }
 
 async function loadUnreadCount(): Promise<void> {
@@ -198,6 +215,7 @@ watch(
       setupNotificationSocket();
     } else {
       unreadCount.value = 0;
+      socialStatsData.value = { following: 0, followers: 0, dynamics: 0 };
       teardownNotificationSocket();
     }
   },
@@ -263,6 +281,13 @@ watch(
             <view class="progress-text">
               <text class="text-left">继续完善资料，解锁更多功能</text>
               <text class="text-right">{{ userStore.user?.vipLevel ?? 1 }}/5</text>
+            </view>
+
+            <view class="social-stats">
+              <view v-for="stat in socialStats" :key="stat.key" class="social-stat">
+                <text class="social-value">{{ stat.value }}</text>
+                <text class="social-label">{{ stat.label }}</text>
+              </view>
             </view>
           </view>
 
@@ -414,7 +439,7 @@ $radius-small: 12px;
 
 .user-card {
   width: 100%;
-  height: 320rpx;
+  min-height: 320rpx;
   padding: 28rpx 30rpx;
   background: $card-white;
   border-radius: $radius-card;
@@ -546,6 +571,35 @@ $radius-small: 12px;
 
 .text-right {
   font-family: monospace;
+}
+
+.social-stats {
+  display: flex;
+  align-items: center;
+  margin-top: 20rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid rgba($brand-brown, 0.1);
+}
+
+.social-stat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.social-value {
+  color: $text-main;
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.social-label {
+  margin-top: 4rpx;
+  color: $text-sub;
+  font-size: 21rpx;
 }
 
 .stats-grid {

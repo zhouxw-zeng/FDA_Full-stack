@@ -54,7 +54,7 @@ function changeTab(key: string): void {
       <AiChatPanel v-show="activeTab === 'ai'" />
       <HomeFeed v-show="activeTab === 'home'" />
       <ChatPanel v-show="activeTab === 'chat'" @friends="changeTab('friends')" />
-      <FriendsPanel v-show="activeTab === 'friends'" @browse="changeTab('home')" />
+      <FriendsPanel v-show="activeTab === 'friends'" />
       <ProfilePanel v-show="activeTab === 'profile'" @chat="changeTab('ai')" />
     </view>
     <AppTabBar :active="activeTab" :items="tabs" @change="changeTab" />
