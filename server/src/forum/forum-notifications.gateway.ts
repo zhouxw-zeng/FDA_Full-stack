@@ -11,7 +11,7 @@ interface SocketData {
 interface NotificationPayload {
   id: string;
   type: string;
-  dynamicId: string;
+  dynamicId: string | null;
   targetId: string | null;
   isRead: boolean;
   createdAt: Date;

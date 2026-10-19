@@ -115,9 +115,44 @@ export class ForumNotificationsService {
     }
   }
 
+  /** 关注通知：同一对关注关系只保留一条有效消息 */
+  async notifyFollow(recipientId: string, actorId: string): Promise<void> {
+    await this.notificationsRepository.update(
+      { recipientId, actorId, type: 'user_follow', withdrawnAt: IsNull() },
+      { withdrawnAt: new Date() },
+    );
+
+    const notification = await this.notificationsRepository.save(
+      this.notificationsRepository.create({
+        recipientId,
+        actorId,
+        type: 'user_follow',
+        dynamicId: null,
+        targetId: actorId,
+        isRead: 0,
+        withdrawnAt: null,
+      }),
+    );
+
+    await this.push(notification);
+  }
+
+  async withdrawFollow(recipientId: string, actorId: string): Promise<void> {
+    await this.notificationsRepository.update(
+      { recipientId, actorId, type: 'user_follow', withdrawnAt: IsNull() },
+      { withdrawnAt: new Date() },
+    );
+  }
+
   private async toResponses(notifications: ForumActivityNotification[]) {
     const actorIds = [...new Set(notifications.map((notification) => notification.actorId))];
-    const dynamicIds = [...new Set(notifications.map((notification) => notification.dynamicId))];
+    const dynamicIds = [
+      ...new Set(
+        notifications
+          .map((notification) => notification.dynamicId)
+          .filter((dynamicId): dynamicId is string => Boolean(dynamicId)),
+      ),
+    ];
     const [actors, dynamics] = await Promise.all([
       actorIds.length ? this.customersRepository.findBy({ id: In(actorIds) }) : [],
       dynamicIds.length ? this.dynamicsRepository.findBy({ id: In(dynamicIds) }) : [],
@@ -127,7 +162,9 @@ export class ForumNotificationsService {
 
     return notifications.map((notification) => {
       const actor = actorMap.get(notification.actorId);
-      const dynamic = dynamicMap.get(notification.dynamicId);
+      const dynamic = notification.dynamicId
+        ? dynamicMap.get(notification.dynamicId)
+        : undefined;
 
       return {
         id: notification.id,
@@ -163,6 +200,9 @@ export class ForumNotificationsService {
     }
     if (type === 'dynamic_comment') {
       return `${actorName} 评论了你的动态`;
+    }
+    if (type === 'user_follow') {
+      return `${actorName} 关注了你`;
     }
     return `${actorName} 回复了你的评论`;
   }

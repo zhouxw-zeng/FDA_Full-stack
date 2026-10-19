@@ -24,6 +24,20 @@ export class SocialController {
     return this.socialService.findUsers(query, customerId);
   }
 
+  @Get('users/:userId')
+  @ApiOperation({ summary: '查询指定用户资料与关注状态（移动端）' })
+  @ApiOkResponse({ description: '查询成功' })
+  findUser(@Param('userId') userId: string, @CurrentMobileCustomer() customerId: string) {
+    return this.socialService.findUser(userId, customerId);
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: '查询当前用户关注、粉丝与动态数量（移动端）' })
+  @ApiOkResponse({ description: '查询成功' })
+  getStats(@CurrentMobileCustomer() customerId: string) {
+    return this.socialService.getStats(customerId);
+  }
+
   @Get('friends')
   @ApiOperation({ summary: '分页查询互相关注好友（移动端）' })
   @ApiOkResponse({ description: '查询成功' })

@@ -1,6 +1,10 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
-export type ForumNotificationType = 'dynamic_like' | 'dynamic_comment' | 'comment_reply';
+export type ForumNotificationType =
+  | 'dynamic_like'
+  | 'dynamic_comment'
+  | 'comment_reply'
+  | 'user_follow';
 
 @Entity('forum_activity_notifications')
 export class ForumActivityNotification {
@@ -15,12 +19,12 @@ export class ForumActivityNotification {
 
   @Column({
     type: 'enum',
-    enum: ['dynamic_like', 'dynamic_comment', 'comment_reply'],
+    enum: ['dynamic_like', 'dynamic_comment', 'comment_reply', 'user_follow'],
   })
   type: ForumNotificationType;
 
-  @Column({ name: 'dynamic_id', type: 'varchar', length: 32 })
-  dynamicId: string;
+  @Column({ name: 'dynamic_id', type: 'varchar', length: 32, nullable: true })
+  dynamicId: string | null;
 
   @Column({ name: 'target_id', type: 'varchar', length: 64, nullable: true })
   targetId: string | null;

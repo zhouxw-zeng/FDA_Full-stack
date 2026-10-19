@@ -4,6 +4,8 @@ import { In, Repository } from 'typeorm';
 import { createPaginationResult, resolvePagination } from '../common/pagination/pagination';
 import { PaginationQueryDto } from '../common/pagination/pagination-query.dto';
 import { CustomerUser } from '../customers/entities/customer-user.entity';
+import { ForumDynamic } from '../forum/entities/forum-dynamic.entity';
+import { ForumNotificationsService } from '../forum/forum-notifications.service';
 import { CustomerImGateway } from './customer-im.gateway';
 import { FollowCustomerDto } from './dto/follow-customer.dto';
 import { QuerySocialUserDto } from './dto/query-social-user.dto';
@@ -20,7 +22,10 @@ export class SocialService {
     private readonly followsRepository: Repository<CustomerFollow>,
     @InjectRepository(CustomerMessage)
     private readonly messagesRepository: Repository<CustomerMessage>,
+    @InjectRepository(ForumDynamic)
+    private readonly dynamicsRepository: Repository<ForumDynamic>,
     private readonly customerImGateway: CustomerImGateway,
+    private readonly forumNotificationsService: ForumNotificationsService,
   ) {}
 
   async findUsers(query: QuerySocialUserDto, currentCustomerId: string) {
@@ -86,12 +91,29 @@ export class SocialService {
     );
   }
 
+  async findUser(userId: string, currentCustomerId: string) {
+    const customer = await this.getCustomerOrThrow(userId);
+    const [user] = await this.toUserResponses([customer], currentCustomerId);
+    return user;
+  }
+
+  async getStats(currentCustomerId: string) {
+    const [following, followers, dynamics] = await Promise.all([
+      this.followsRepository.count({ where: { followerId: currentCustomerId } }),
+      this.followsRepository.count({ where: { followingId: currentCustomerId } }),
+      this.dynamicsRepository.count({ where: { customerId: currentCustomerId } }),
+    ]);
+
+    return { following, followers, dynamics };
+  }
+
   async follow(dto: FollowCustomerDto, currentCustomerId: string) {
     if (dto.targetUserId === currentCustomerId) {
       throw new ConflictException('不能关注自己');
     }
 
     await this.getCustomerOrThrow(dto.targetUserId);
+    const alreadyFollowing = await this.isFollowing(currentCustomerId, dto.targetUserId);
     await this.followsRepository
       .createQueryBuilder()
       .insert()
@@ -102,6 +124,10 @@ export class SocialService {
       })
       .orIgnore()
       .execute();
+
+    if (!alreadyFollowing) {
+      await this.forumNotificationsService.notifyFollow(dto.targetUserId, currentCustomerId);
+    }
 
     const [isFollowedBy, isMutual] = await Promise.all([
       this.isFollowing(dto.targetUserId, currentCustomerId),
@@ -120,10 +146,14 @@ export class SocialService {
 
   async unfollow(targetUserId: string, currentCustomerId: string) {
     await this.getCustomerOrThrow(targetUserId);
-    await this.followsRepository.delete({
+    const result = await this.followsRepository.delete({
       followerId: currentCustomerId,
       followingId: targetUserId,
     });
+
+    if (result.affected) {
+      await this.forumNotificationsService.withdrawFollow(targetUserId, currentCustomerId);
+    }
 
     return {
       success: true,
