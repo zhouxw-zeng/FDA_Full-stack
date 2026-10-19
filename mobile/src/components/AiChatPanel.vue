@@ -470,7 +470,8 @@ watch(
 
 .title-row {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: flex-start;
   min-width: 0;
   margin-top: 4rpx;
 }
@@ -484,8 +485,9 @@ watch(
 }
 
 .session-title {
+  max-width: 100%;
   min-width: 0;
-  margin-left: 12rpx;
+  margin-top: 6rpx;
   overflow: hidden;
   color: $rococo-muted;
   font-size: 22rpx;

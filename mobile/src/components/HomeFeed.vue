@@ -125,7 +125,12 @@ watch(
 
 <template>
   <view class="feed-panel panel">
-    <view class="search-placeholder"></view>
+    <view class="feed-header">
+      <view class="feed-title-group">
+        <text class="feed-kicker">Moments</text>
+        <text class="feed-title">动态</text>
+      </view>
+    </view>
 
     <scroll-view
       v-if="userStore.isLoggedIn"
@@ -228,13 +233,38 @@ watch(
   background: #f7f8fa;
 }
 
-.search-placeholder {
+.feed-header {
+  display: flex;
   flex: none;
+  align-items: center;
   width: 100%;
   height: 120rpx;
+  padding: 0 32rpx;
   box-sizing: border-box;
   background: #ffffff;
   border-bottom: 1rpx solid #f0f0f0;
+}
+
+.feed-title-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.feed-kicker {
+  color: $rococo-gold;
+  font-size: 20rpx;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.feed-title {
+  margin-top: 4rpx;
+  color: #222222;
+  font-size: 38rpx;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .waterfall-scroll {
