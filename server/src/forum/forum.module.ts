@@ -20,6 +20,9 @@ import { ForumAdminController } from './forum-admin.controller';
 import { ForumDynamicTypesController } from './forum-dynamic-types.controller';
 import { ForumDynamicTypesService } from './forum-dynamic-types.service';
 import { ForumController } from './forum.controller';
+import { ForumNotificationsController } from './forum-notifications.controller';
+import { ForumNotificationsGateway } from './forum-notifications.gateway';
+import { ForumNotificationsService } from './forum-notifications.service';
 import { ForumService } from './forum.service';
 
 @Module({
@@ -44,6 +47,7 @@ import { ForumService } from './forum.service';
     ForumAdminController,
     ForumDynamicTypesController,
     ForumChangeLogsController,
+    ForumNotificationsController,
   ],
   providers: [
     ForumService,
@@ -51,6 +55,8 @@ import { ForumService } from './forum.service';
     ForumChangeLogsService,
     ForumInteractionsService,
     ForumCommentsService,
+    ForumNotificationsGateway,
+    ForumNotificationsService,
   ],
   exports: [
     ForumService,
@@ -58,6 +64,7 @@ import { ForumService } from './forum.service';
     ForumChangeLogsService,
     ForumInteractionsService,
     ForumCommentsService,
+    ForumNotificationsService,
   ],
 })
 export class ForumModule {}

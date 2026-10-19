@@ -1,31 +1,35 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { resolveFileUrl } from '@/api/files';
-import { fetchMyForumDynamics } from '@/api/forum';
+import { connectNotificationSocket, type NotificationSocketHandle } from '@/api/notification-socket';
+import { fetchUnreadNotificationCount } from '@/api/notifications';
 import { useUserStore } from '@/stores/user';
 
 defineOptions({ name: 'ProfilePanel' });
 
+const emit = defineEmits<{ chat: [] }>();
+
 interface FunctionItem {
   key: 'moments' | 'favorites' | 'message' | 'logout';
-  mark: string;
+  icon: string;
   label: string;
-  note: string;
+  badge?: number;
 }
 
-type MetricKey = 'moments' | 'publish' | 'records';
+type MetricKey = 'chat' | 'publish' | 'likes';
 
 interface MetricItem {
   key: MetricKey;
   label: string;
-  value: string | number;
-  iconClass: string;
+  icon: string;
 }
 
 const userStore = useUserStore();
 const loggingOut = ref(false);
-const recordTotal = ref(0);
+const unreadCount = ref(0);
+
+let notificationSocket: NotificationSocketHandle | null = null;
 
 const promoSlides = [
   {
@@ -52,27 +56,22 @@ const progressValue = computed(() =>
 );
 const progressWidth = computed(() => `${progressValue.value}%`);
 
-const metrics = computed<MetricItem[]>(() => [
-  {
-    key: 'moments',
-    label: '动态',
-    value: userStore.userInfo?.dynamicCount ?? 0,
-    iconClass: 'stat-icon--one',
-  },
-  { key: 'publish', label: '发布动态', value: '+', iconClass: 'stat-icon--two' },
-  { key: 'records', label: '记录', value: recordTotal.value, iconClass: 'stat-icon--three' },
-]);
+const metrics: MetricItem[] = [
+  { key: 'chat', label: '聊天入口', icon: '/static/icons/message-icon.png' },
+  { key: 'publish', label: '发布动态', icon: '/static/icons/push_icon.png' },
+  { key: 'likes', label: '我的喜欢', icon: '/static/icons/likes-icon.png' },
+];
 
 const functionItems = computed<FunctionItem[]>(() => [
+  { key: 'moments', icon: '/static/icons/my-dynamic-icon.png', label: '动态' },
+  { key: 'favorites', icon: '/static/icons/collect-icon.png', label: '我的收藏' },
   {
-    key: 'moments',
-    mark: '动',
-    label: '我的动态',
-    note: `${userStore.userInfo?.dynamicCount ?? 0} 条`,
+    key: 'message',
+    icon: '/static/icons/message-icon.png',
+    label: '消息通知',
+    badge: unreadCount.value,
   },
-  { key: 'favorites', mark: '藏', label: '我的收藏', note: '待接入' },
-  { key: 'message', mark: '信', label: '消息通知', note: '待接入' },
-  { key: 'logout', mark: '退', label: '退出登录', note: '清理缓存' },
+  { key: 'logout', icon: '/static/icons/loginout-icon.png', label: '退出登录' },
 ]);
 
 function goEdit(): void {
@@ -88,26 +87,17 @@ function goMyDynamics(): void {
 }
 
 function handleMetric(key: MetricKey): void {
+  if (key === 'chat') {
+    emit('chat');
+    return;
+  }
+
   if (key === 'publish') {
     uni.navigateTo({ url: '/pages/dynamic/publish' });
     return;
   }
 
-  if (key === 'moments') {
-    goMyDynamics();
-    return;
-  }
-
-  uni.navigateTo({ url: '/pages/dynamic/records' });
-}
-
-async function loadRecordTotal(): Promise<void> {
-  try {
-    const result = await fetchMyForumDynamics({ page: 1, size: 1 });
-    recordTotal.value = result.total;
-  } catch {
-    recordTotal.value = 0;
-  }
+  uni.navigateTo({ url: '/pages/dynamic/liked' });
 }
 
 async function initialize(): Promise<void> {
@@ -118,8 +108,35 @@ async function initialize(): Promise<void> {
   await Promise.all([
     userStore.loadProfile().catch(() => undefined),
     userStore.loadUserInfo().catch(() => undefined),
-    loadRecordTotal(),
+    loadUnreadCount(),
   ]);
+}
+
+async function loadUnreadCount(): Promise<void> {
+  try {
+    const result = await fetchUnreadNotificationCount();
+    unreadCount.value = result.count;
+  } catch {
+    unreadCount.value = 0;
+  }
+}
+
+function handleUnreadChanged(count: number): void {
+  unreadCount.value = Number(count) || 0;
+}
+
+function setupNotificationSocket(): void {
+  notificationSocket?.close();
+  notificationSocket = connectNotificationSocket({
+    onNew: (payload) => {
+      unreadCount.value = payload.unreadCount;
+    },
+  });
+}
+
+function teardownNotificationSocket(): void {
+  notificationSocket?.close();
+  notificationSocket = null;
 }
 
 async function logout(): Promise<void> {
@@ -147,11 +164,30 @@ function handleFunction(item: FunctionItem): void {
     return;
   }
 
+  if (item.key === 'favorites') {
+    uni.navigateTo({ url: '/pages/dynamic/favorites' });
+    return;
+  }
+
+  if (item.key === 'message') {
+    uni.navigateTo({ url: '/pages/profile/notifications' });
+    return;
+  }
+
   uni.showToast({ title: '功能预留中', icon: 'none' });
 }
 
 onMounted(() => {
+  uni.$on('notification:unread-changed', handleUnreadChanged);
   void initialize();
+  if (userStore.isLoggedIn) {
+    setupNotificationSocket();
+  }
+});
+
+onUnmounted(() => {
+  uni.$off('notification:unread-changed', handleUnreadChanged);
+  teardownNotificationSocket();
 });
 
 watch(
@@ -159,6 +195,10 @@ watch(
   (loggedIn) => {
     if (loggedIn) {
       void initialize();
+      setupNotificationSocket();
+    } else {
+      unreadCount.value = 0;
+      teardownNotificationSocket();
     }
   },
 );
@@ -233,8 +273,9 @@ watch(
               class="stat-card"
               @tap="handleMetric(metric.key)"
             >
-              <view class="stat-icon" :class="metric.iconClass"></view>
-              <text class="stat-value">{{ metric.value }}</text>
+              <view class="stat-icon">
+                <image class="stat-icon-image" :src="metric.icon" mode="aspectFill" />
+              </view>
               <text class="stat-label">{{ metric.label }}</text>
             </view>
           </view>
@@ -251,9 +292,15 @@ watch(
                 class="function-item"
                 @tap="handleFunction(item)"
               >
-                <view class="function-mark">{{ item.mark }}</view>
+                <view class="function-icon-wrap">
+                  <view class="function-icon">
+                    <image class="function-icon-image" :src="item.icon" mode="aspectFill" />
+                  </view>
+                  <text v-if="item.badge" class="function-badge">
+                    {{ item.badge > 99 ? '99+' : item.badge }}
+                  </text>
+                </view>
                 <text class="function-label">{{ item.label }}</text>
-                <text class="function-note">{{ item.note }}</text>
               </view>
             </view>
           </view>
@@ -521,34 +568,31 @@ $radius-small: 12px;
 }
 
 .stat-icon {
-  width: 64rpx;
-  height: 64rpx;
-  margin-bottom: 16rpx;
-  border-radius: 10rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84rpx;
+  height: 84rpx;
+  overflow: hidden;
+  background: $tag-bg;
+  border: 1rpx solid rgba($brand-brown, 0.12);
+  border-radius: 18rpx;
+  box-sizing: border-box;
 }
 
-.stat-icon--one {
-  background: #dcebd8;
-}
-
-.stat-icon--two {
-  background: #e7e2f0;
-}
-
-.stat-icon--three {
-  background: #f4e1d7;
-}
-
-.stat-value {
-  color: $text-main;
-  font-size: 34rpx;
-  font-weight: 600;
+.stat-icon-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scale(1.2);
+  transform-origin: center center;
 }
 
 .stat-label {
-  margin-top: 8rpx;
+  margin-top: 14rpx;
   color: $text-sub;
   font-size: 22rpx;
+  text-align: center;
 }
 
 .function-section,
@@ -593,29 +637,52 @@ $radius-small: 12px;
   box-sizing: border-box;
 }
 
-.function-mark {
+.function-icon-wrap {
+  position: relative;
+}
+
+.function-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 72rpx;
-  height: 72rpx;
-  color: $brand-brown;
-  font-size: 27rpx;
-  font-weight: 600;
+  width: 80rpx;
+  height: 80rpx;
+  overflow: hidden;
   background: $tag-bg;
-  border-radius: 50%;
+  border: 1rpx solid rgba($brand-brown, 0.12);
+  border-radius: 18rpx;
+  box-sizing: border-box;
+}
+
+.function-icon-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scale(1.62);
+  transform-origin: center center;
+}
+
+.function-badge {
+  position: absolute;
+  top: -8rpx;
+  right: -10rpx;
+  min-width: 34rpx;
+  height: 34rpx;
+  padding: 0 8rpx;
+  color: #fffdfa;
+  font-size: 18rpx;
+  line-height: 30rpx;
+  text-align: center;
+  background: $rococo-rose;
+  border: 2rpx solid $card-white;
+  border-radius: 17rpx;
+  box-sizing: border-box;
 }
 
 .function-label {
-  margin-top: 14rpx;
+  margin-top: 12rpx;
   color: $text-main;
-  font-size: 22rpx;
-}
-
-.function-note {
-  margin-top: 5rpx;
-  color: $text-sub;
-  font-size: 20rpx;
+  font-size: 23rpx;
 }
 
 .promo-banner {

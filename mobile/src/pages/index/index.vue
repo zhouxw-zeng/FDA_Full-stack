@@ -39,7 +39,7 @@ function changeTab(key: string): void {
     <view class="shell-main">
       <HomeFeed v-show="activeTab === 'home'" />
       <AiChatPanel v-show="activeTab === 'ai'" />
-      <ProfilePanel v-show="activeTab === 'profile'" />
+      <ProfilePanel v-show="activeTab === 'profile'" @chat="changeTab('ai')" />
     </view>
     <AppTabBar :active="activeTab" :items="tabs" @change="changeTab" />
   </view>

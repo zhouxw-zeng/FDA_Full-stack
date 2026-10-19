@@ -10,6 +10,7 @@ import { ForumDynamicLike } from './entities/forum-dynamic-like.entity';
 import { ForumDynamicShareEvent } from './entities/forum-dynamic-share-event.entity';
 import { ForumDynamic } from './entities/forum-dynamic.entity';
 import { ForumInteractionEvent } from './entities/forum-interaction-event.entity';
+import { ForumNotificationsService } from './forum-notifications.service';
 
 @Injectable()
 export class ForumInteractionsService {
@@ -21,10 +22,12 @@ export class ForumInteractionsService {
     private readonly likesRepository: Repository<ForumDynamicLike>,
     @InjectRepository(ForumDynamicFavorite)
     private readonly favoritesRepository: Repository<ForumDynamicFavorite>,
+    private readonly notificationsService: ForumNotificationsService,
   ) {}
 
   async toggleLike(dto: ForumInteractionDto, customerId: string) {
-    await this.dataSource.transaction(async (manager) => {
+    const notification = await this.dataSource.transaction(async (manager) => {
+      let notificationToPush: ForumActivityNotification | null = null;
       const dynamic = await this.getDynamicOrThrow(manager, dto.dynamicId);
 
       if (dto.action === 'like') {
@@ -38,13 +41,16 @@ export class ForumInteractionsService {
 
         if (this.affectedRows(result.raw) > 0) {
           await manager.increment(ForumDynamic, { id: dto.dynamicId }, 'likeCount', 1);
-          await this.upsertNotification(manager, {
-            recipientId: dynamic.customerId,
-            actorId: customerId,
-            type: 'dynamic_like',
-            dynamicId: dto.dynamicId,
-            targetId: dto.dynamicId,
-          });
+        }
+        const notificationResult = await this.upsertNotification(manager, {
+          recipientId: dynamic.customerId,
+          actorId: customerId,
+          type: 'dynamic_like',
+          dynamicId: dto.dynamicId,
+          targetId: dto.dynamicId,
+        });
+        if (notificationResult?.shouldPush) {
+          notificationToPush = notificationResult.notification;
         }
       } else {
         const result = await manager.delete(ForumDynamicLike, {
@@ -78,7 +84,13 @@ export class ForumInteractionsService {
         action: dto.action,
         requestId: dto.requestId,
       });
+
+      return notificationToPush;
     });
+
+    if (notification) {
+      await this.notificationsService.push(notification);
+    }
 
     return this.getInteractionInfo(dto.dynamicId, customerId);
   }
@@ -223,12 +235,15 @@ export class ForumInteractionsService {
       dynamicId: string;
       targetId: string;
     },
-  ) {
+  ): Promise<{
+    notification: ForumActivityNotification;
+    shouldPush: boolean;
+  } | null> {
     if (input.recipientId === input.actorId) {
-      return;
+      return null;
     }
 
-    await manager
+    const insertResult = await manager
       .createQueryBuilder()
       .insert()
       .into(ForumActivityNotification)
@@ -236,17 +251,29 @@ export class ForumInteractionsService {
       .orIgnore()
       .execute();
 
-    await manager.update(
-      ForumActivityNotification,
-      {
-        recipientId: input.recipientId,
-        actorId: input.actorId,
-        type: input.type,
-        dynamicId: input.dynamicId,
-        targetId: input.targetId,
-      },
-      { withdrawnAt: null },
-    );
+    const notification = await manager.findOneBy(ForumActivityNotification, {
+      recipientId: input.recipientId,
+      actorId: input.actorId,
+      type: input.type,
+      dynamicId: input.dynamicId,
+      targetId: input.targetId,
+    });
+    if (!notification) {
+      return null;
+    }
+
+    if (this.affectedRows(insertResult.raw) > 0) {
+      return { notification, shouldPush: true };
+    }
+
+    if (notification.withdrawnAt) {
+      notification.withdrawnAt = null;
+      notification.isRead = 0;
+      await manager.save(notification);
+      return { notification, shouldPush: true };
+    }
+
+    return { notification, shouldPush: false };
   }
 
   private affectedRows(raw: unknown): number {

@@ -58,6 +58,30 @@ export async function fetchMyForumDynamics(
   return { ...result, list: result.list.map(normalizeDynamic) };
 }
 
+export async function fetchMyLikedForumDynamics(
+  page = 1,
+  size = 10,
+): Promise<PageResult<ForumDynamic>> {
+  const result = await http.get<PageResult<ForumDynamic>>('/forum/dynamics/liked', {
+    page,
+    size,
+  });
+
+  return { ...result, list: result.list.map(normalizeDynamic) };
+}
+
+export async function fetchMyFavoritedForumDynamics(
+  page = 1,
+  size = 10,
+): Promise<PageResult<ForumDynamic>> {
+  const result = await http.get<PageResult<ForumDynamic>>('/forum/dynamics/favorited', {
+    page,
+    size,
+  });
+
+  return { ...result, list: result.list.map(normalizeDynamic) };
+}
+
 export async function fetchForumDynamicDetail(id: string): Promise<ForumDynamic> {
   return normalizeDynamic(await http.get<ForumDynamic>(`/forum/dynamics/${id}`));
 }
@@ -73,9 +97,7 @@ export function deleteMyForumDynamic(id: string): Promise<{ success: boolean; id
   return http.delete<{ success: boolean; id: string }>(`/forum/dynamics/${id}`);
 }
 
-export function createForumDynamic(
-  payload: CreateMyForumDynamicPayload,
-): Promise<ForumDynamic> {
+export function createForumDynamic(payload: CreateMyForumDynamicPayload): Promise<ForumDynamic> {
   return http.post<ForumDynamic>('/forum/dynamics', payload).then(normalizeDynamic);
 }
 

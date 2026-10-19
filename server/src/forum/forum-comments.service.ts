@@ -9,6 +9,7 @@ import { ForumActivityNotification } from './entities/forum-activity-notificatio
 import { ForumComment } from './entities/forum-comment.entity';
 import { ForumDynamic } from './entities/forum-dynamic.entity';
 import { ForumInteractionEvent } from './entities/forum-interaction-event.entity';
+import { ForumNotificationsService } from './forum-notifications.service';
 
 @Injectable()
 export class ForumCommentsService {
@@ -18,10 +19,12 @@ export class ForumCommentsService {
     private readonly commentsRepository: Repository<ForumComment>,
     @InjectRepository(CustomerUser)
     private readonly customersRepository: Repository<CustomerUser>,
+    private readonly notificationsService: ForumNotificationsService,
   ) {}
 
   async create(dto: CreateForumCommentDto, customerId: string) {
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
+      const notifications: ForumActivityNotification[] = [];
       const dynamic = await manager.findOneBy(ForumDynamic, { id: dto.dynamicId });
       if (!dynamic) {
         throw new NotFoundException(`动态 ${dto.dynamicId} 不存在`);
@@ -74,26 +77,41 @@ export class ForumCommentsService {
         }),
       );
 
-      await this.createNotification(manager, {
+      const dynamicNotification = await this.createNotification(manager, {
         recipientId: dynamic.customerId,
         actorId: customerId,
         type: 'dynamic_comment',
         dynamicId: dto.dynamicId,
         targetId: comment.id,
       });
+      if (dynamicNotification) {
+        notifications.push(dynamicNotification);
+      }
 
       if (parent) {
-        await this.createNotification(manager, {
+        const replyNotification = await this.createNotification(manager, {
           recipientId: parent.customerId,
           actorId: customerId,
           type: 'comment_reply',
           dynamicId: dto.dynamicId,
           targetId: comment.id,
         });
+        if (replyNotification) {
+          notifications.push(replyNotification);
+        }
       }
 
-      return this.toResponse(comment, await this.getAuthor(customerId), customerId);
+      return {
+        response: this.toResponse(comment, await this.getAuthor(customerId), customerId),
+        notifications,
+      };
     });
+
+    for (const notification of result.notifications) {
+      await this.notificationsService.push(notification);
+    }
+
+    return result.response;
   }
 
   async findTopLevel(dynamicId: string, query: QueryForumCommentDto, customerId?: string) {
@@ -264,9 +282,9 @@ export class ForumCommentsService {
       dynamicId: string;
       targetId: string;
     },
-  ) {
+  ): Promise<ForumActivityNotification | null> {
     if (input.recipientId === input.actorId) {
-      return;
+      return null;
     }
 
     await manager
@@ -276,5 +294,13 @@ export class ForumCommentsService {
       .values({ ...input, isRead: 0, withdrawnAt: null })
       .orIgnore()
       .execute();
+
+    return manager.findOneBy(ForumActivityNotification, {
+      recipientId: input.recipientId,
+      actorId: input.actorId,
+      type: input.type,
+      dynamicId: input.dynamicId,
+      targetId: input.targetId,
+    });
   }
 }

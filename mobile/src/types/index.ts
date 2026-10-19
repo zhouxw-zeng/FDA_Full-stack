@@ -187,6 +187,29 @@ export interface ForumInteractionInfo {
   shareCount: number;
 }
 
+export type ForumNotificationType = 'dynamic_like' | 'dynamic_comment' | 'comment_reply';
+
+export interface ForumNotification {
+  id: string;
+  type: ForumNotificationType;
+  dynamicId: string;
+  targetId: string | null;
+  isRead: boolean;
+  createdAt: string;
+  actor: {
+    id: string;
+    nickname: string;
+    avatar: string | null;
+  } | null;
+  dynamic: {
+    id: string;
+    title: string | null;
+    content: string;
+    topic: string;
+  } | null;
+  message: string;
+}
+
 export type ChatRole = 'system' | 'user' | 'assistant';
 
 export interface AiChatMessage {

@@ -50,6 +50,30 @@
         "enablePullDownRefresh": false,
         "navigationBarTextStyle": "black"
       }
+    },
+    {
+      "path": "pages/dynamic/liked",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/dynamic/favorites",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/profile/notifications",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
     }
   ],
   "globalStyle": {

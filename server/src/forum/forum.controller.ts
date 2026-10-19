@@ -8,6 +8,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { apiDataResponse } from '../common/swagger/api-data-response';
+import { PaginationQueryDto } from '../common/pagination/pagination-query.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentMobileCustomer } from '../mobile-auth/decorators/current-mobile-customer.decorator';
 import { MobileAuthGuard } from '../mobile-auth/guards/mobile-auth.guard';
@@ -135,6 +136,32 @@ export class ForumController {
   @ApiOperation({ summary: '记录动态分享事件' })
   share(@Body() dto: ShareForumDynamicDto, @CurrentMobileCustomer() customerId: string) {
     return this.interactionsService.share(dto, customerId);
+  }
+
+  @Get('dynamics/liked')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '分页查询当前移动端用户点赞过的动态' })
+  @ApiOkResponse(
+    apiDataResponse(ForumDynamicPageResponseDto, {
+      description: '查询成功',
+    }),
+  )
+  findLiked(@Query() query: PaginationQueryDto, @CurrentMobileCustomer() customerId: string) {
+    return this.forumService.findLiked(query, customerId);
+  }
+
+  @Get('dynamics/favorited')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '分页查询当前移动端用户收藏过的动态' })
+  @ApiOkResponse(
+    apiDataResponse(ForumDynamicPageResponseDto, {
+      description: '查询成功',
+    }),
+  )
+  findFavorited(@Query() query: PaginationQueryDto, @CurrentMobileCustomer() customerId: string) {
+    return this.forumService.findFavorited(query, customerId);
   }
 
   @Post('comments')

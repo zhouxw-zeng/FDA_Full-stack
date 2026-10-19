@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { createPaginationResult, resolvePagination } from '../common/pagination/pagination';
+import { PaginationQueryDto } from '../common/pagination/pagination-query.dto';
 import { AuditForumDynamicDto } from './dto/audit-forum-dynamic.dto';
 import { CreateMyForumDynamicDto } from './dto/create-my-forum-dynamic.dto';
 import { QueryMyForumDynamicDto } from './dto/query-my-forum-dynamic.dto';
@@ -137,6 +138,82 @@ export class ForumService {
       page,
       size,
     );
+  }
+
+  async findLiked(query: PaginationQueryDto, customerId: string) {
+    const { page, size, skip } = resolvePagination(query);
+    const buildQuery = () =>
+      this.likesRepository
+        .createQueryBuilder('like')
+        .innerJoin(ForumDynamic, 'dynamic', 'dynamic.id = like.dynamicId')
+        .where('like.customerId = :customerId', { customerId })
+        .andWhere('dynamic.auditStatus = :auditStatus', { auditStatus: 'approved' })
+        .andWhere('dynamic.enabled = :enabled', { enabled: 1 });
+
+    const total = await buildQuery().getCount();
+    const likes = await buildQuery()
+      .orderBy('like.createdAt', 'DESC')
+      .addOrderBy('like.id', 'DESC')
+      .skip(skip)
+      .take(size)
+      .getMany();
+
+    const dynamicIds = likes.map((like) => like.dynamicId);
+    if (dynamicIds.length === 0) {
+      return createPaginationResult([], total, page, size);
+    }
+
+    const dynamics = await this.dynamicsRepository.find({
+      where: { id: In(dynamicIds) },
+      relations: { customer: true, type: true },
+    });
+    const dynamicMap = new Map(dynamics.map((dynamic) => [dynamic.id, dynamic]));
+    const interactionStates = await this.getInteractionStates(dynamicIds, customerId);
+
+    const list = likes
+      .map((like) => dynamicMap.get(like.dynamicId))
+      .filter((dynamic): dynamic is ForumDynamic => dynamic !== undefined)
+      .map((dynamic) => this.toResponse(dynamic, interactionStates.get(dynamic.id)));
+
+    return createPaginationResult(list, total, page, size);
+  }
+
+  async findFavorited(query: PaginationQueryDto, customerId: string) {
+    const { page, size, skip } = resolvePagination(query);
+    const buildQuery = () =>
+      this.favoritesRepository
+        .createQueryBuilder('favorite')
+        .innerJoin(ForumDynamic, 'dynamic', 'dynamic.id = favorite.dynamicId')
+        .where('favorite.customerId = :customerId', { customerId })
+        .andWhere('dynamic.auditStatus = :auditStatus', { auditStatus: 'approved' })
+        .andWhere('dynamic.enabled = :enabled', { enabled: 1 });
+
+    const total = await buildQuery().getCount();
+    const favorites = await buildQuery()
+      .orderBy('favorite.createdAt', 'DESC')
+      .addOrderBy('favorite.id', 'DESC')
+      .skip(skip)
+      .take(size)
+      .getMany();
+
+    const dynamicIds = favorites.map((favorite) => favorite.dynamicId);
+    if (dynamicIds.length === 0) {
+      return createPaginationResult([], total, page, size);
+    }
+
+    const dynamics = await this.dynamicsRepository.find({
+      where: { id: In(dynamicIds) },
+      relations: { customer: true, type: true },
+    });
+    const dynamicMap = new Map(dynamics.map((dynamic) => [dynamic.id, dynamic]));
+    const interactionStates = await this.getInteractionStates(dynamicIds, customerId);
+
+    const list = favorites
+      .map((favorite) => dynamicMap.get(favorite.dynamicId))
+      .filter((dynamic): dynamic is ForumDynamic => dynamic !== undefined)
+      .map((dynamic) => this.toResponse(dynamic, interactionStates.get(dynamic.id)));
+
+    return createPaginationResult(list, total, page, size);
   }
 
   async findOne(id: string, customerId?: string) {
