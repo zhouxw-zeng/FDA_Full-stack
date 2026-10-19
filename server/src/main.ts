@@ -58,6 +58,7 @@ async function bootstrap(): Promise<void> {
     .addTag('mobile / auth', '移动端 / 认证')
     .addTag('mobile / forum', '移动端 / 论坛动态')
     .addTag('mobile / ai-chat', '移动端 / AI 问答')
+    .addTag('mobile / social', '移动端 / 社交与 IM')
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   (swaggerDocument as unknown as Record<string, unknown>)['x-tagGroups'] = [
@@ -83,7 +84,13 @@ async function bootstrap(): Promise<void> {
     },
     {
       name: '移动端（mobile）',
-      tags: ['mobile / auth', 'mobile / customers', 'mobile / forum', 'mobile / ai-chat'],
+      tags: [
+        'mobile / auth',
+        'mobile / customers',
+        'mobile / forum',
+        'mobile / ai-chat',
+        'mobile / social',
+      ],
     },
   ];
   SwaggerModule.setup('swagger/docs', app, swaggerDocument);

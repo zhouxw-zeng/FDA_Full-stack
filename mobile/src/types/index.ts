@@ -210,6 +210,46 @@ export interface ForumNotification {
   message: string;
 }
 
+export interface SocialUser {
+  id: string;
+  nickname: string;
+  avatar: string | null;
+  signature: string | null;
+  region: string | null;
+  vipLevel: number;
+  isFollowing: boolean;
+  isFollowedBy: boolean;
+  isMutual: boolean;
+  canChat: boolean;
+  canLeaveMessage: boolean;
+}
+
+export interface SocialFollowState {
+  success: boolean;
+  targetUserId: string;
+  isFollowing: boolean;
+  isFollowedBy: boolean;
+  isMutual: boolean;
+  canChat: boolean;
+}
+
+export interface SocialMessage {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  content: string;
+  deliveryMode: 'guestbook' | 'chat';
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+  sender: {
+    id: string;
+    nickname: string;
+    avatar: string | null;
+  } | null;
+  isMutual?: boolean;
+}
+
 export type ChatRole = 'system' | 'user' | 'assistant';
 
 export interface AiChatMessage {

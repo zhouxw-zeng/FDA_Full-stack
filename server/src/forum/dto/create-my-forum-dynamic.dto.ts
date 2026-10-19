@@ -15,7 +15,7 @@ import { ForumMediaItemDto } from './forum-media-item.dto';
 
 export class CreateMyForumDynamicDto {
   @ApiProperty({ example: '周末的海边', maxLength: 200 })
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty({ message: '请填写动态标题' })
   @MaxLength(200)
