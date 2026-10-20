@@ -12,6 +12,7 @@
     "dev:h5": "pnpm -C mobile dev:h5",
     "dev:wx": "pnpm -C mobile dev:mp-weixin",
     "dev:server": "npm --prefix server run start:dev",
+    "init:mysql": "pnpm -C server run init:mysql",
     "build": "npm run build:admin && npm run build:mobile:h5 && npm run build:server",
     "build:admin": "pnpm -C admin build",
     "build:mobile:h5": "pnpm -C mobile build:h5",

@@ -13,7 +13,8 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main.js"
+    "start:prod": "node dist/main.js",
+    "init:mysql": "node scripts/init-mysql.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",
