@@ -188,10 +188,7 @@ export interface ForumInteractionInfo {
 }
 
 export type ForumNotificationType =
-  | 'dynamic_like'
-  | 'dynamic_comment'
-  | 'comment_reply'
-  | 'user_follow';
+  'dynamic_like' | 'dynamic_comment' | 'comment_reply' | 'user_follow';
 
 export interface ForumNotification {
   id: string;
@@ -241,6 +238,37 @@ export interface SocialStats {
   following: number;
   followers: number;
   dynamics: number;
+}
+
+export interface SocialUserDetail extends SocialUser {
+  followingCount: number;
+  followersCount: number;
+  dynamicCount: number;
+}
+
+export interface SocialConversationPeer {
+  id: string;
+  nickname: string;
+  avatar: string | null;
+  signature: string | null;
+  region: string | null;
+  vipLevel: number;
+}
+
+export interface SocialConversation {
+  id: string;
+  user: SocialConversationPeer;
+  lastMessage: {
+    id: string;
+    content: string;
+    senderId: string;
+    createdAt: string;
+  } | null;
+  lastMessageAt: string | null;
+  unreadCount: number;
+  isPinned: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SocialMessage {

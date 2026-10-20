@@ -6,10 +6,13 @@ import { PaginationQueryDto } from '../common/pagination/pagination-query.dto';
 import { CustomerUser } from '../customers/entities/customer-user.entity';
 import { ForumDynamic } from '../forum/entities/forum-dynamic.entity';
 import { ForumNotificationsService } from '../forum/forum-notifications.service';
+import { ForumService } from '../forum/forum.service';
 import { CustomerImGateway } from './customer-im.gateway';
 import { FollowCustomerDto } from './dto/follow-customer.dto';
+import { PinConversationDto } from './dto/pin-conversation.dto';
 import { QuerySocialUserDto } from './dto/query-social-user.dto';
 import { SendCustomerMessageDto } from './dto/send-customer-message.dto';
+import { CustomerConversation } from './entities/customer-conversation.entity';
 import { CustomerFollow } from './entities/customer-follow.entity';
 import { CustomerMessage } from './entities/customer-message.entity';
 
@@ -22,10 +25,13 @@ export class SocialService {
     private readonly followsRepository: Repository<CustomerFollow>,
     @InjectRepository(CustomerMessage)
     private readonly messagesRepository: Repository<CustomerMessage>,
+    @InjectRepository(CustomerConversation)
+    private readonly conversationsRepository: Repository<CustomerConversation>,
     @InjectRepository(ForumDynamic)
     private readonly dynamicsRepository: Repository<ForumDynamic>,
     private readonly customerImGateway: CustomerImGateway,
     private readonly forumNotificationsService: ForumNotificationsService,
+    private readonly forumService: ForumService,
   ) {}
 
   async findUsers(query: QuerySocialUserDto, currentCustomerId: string) {
@@ -94,17 +100,146 @@ export class SocialService {
   async findUser(userId: string, currentCustomerId: string) {
     const customer = await this.getCustomerOrThrow(userId);
     const [user] = await this.toUserResponses([customer], currentCustomerId);
-    return user;
+    return {
+      ...user,
+      ...(await this.getCustomerStats(userId)),
+    };
+  }
+
+  async findUserDynamics(userId: string, query: PaginationQueryDto, currentCustomerId: string) {
+    await this.getCustomerOrThrow(userId);
+    return this.forumService.findByCustomer(userId, query, currentCustomerId);
   }
 
   async getStats(currentCustomerId: string) {
-    const [following, followers, dynamics] = await Promise.all([
-      this.followsRepository.count({ where: { followerId: currentCustomerId } }),
-      this.followsRepository.count({ where: { followingId: currentCustomerId } }),
-      this.dynamicsRepository.count({ where: { customerId: currentCustomerId } }),
-    ]);
+    const { followingCount, followersCount, dynamicCount } =
+      await this.getCustomerStats(currentCustomerId);
 
-    return { following, followers, dynamics };
+    return {
+      following: followingCount,
+      followers: followersCount,
+      dynamics: dynamicCount,
+    };
+  }
+
+  async openConversation(targetUserId: string, currentCustomerId: string) {
+    if (targetUserId === currentCustomerId) {
+      throw new ConflictException('不能和自己创建会话');
+    }
+
+    const target = await this.getCustomerOrThrow(targetUserId);
+    const [customerAId, customerBId] = this.normalizePair(currentCustomerId, targetUserId);
+
+    await this.conversationsRepository
+      .createQueryBuilder()
+      .insert()
+      .into(CustomerConversation)
+      .values({ customerAId, customerBId, lastMessageId: null, lastMessageAt: null })
+      .orIgnore()
+      .execute();
+
+    const conversation = await this.conversationsRepository.findOneBy({
+      customerAId,
+      customerBId,
+    });
+    if (!conversation) {
+      throw new NotFoundException('会话创建失败');
+    }
+
+    const currentIsA = conversation.customerAId === currentCustomerId;
+    await this.conversationsRepository.update(
+      conversation.id,
+      currentIsA ? { deletedByA: 0 } : { deletedByB: 0 },
+    );
+    if (currentIsA) {
+      conversation.deletedByA = 0;
+    } else {
+      conversation.deletedByB = 0;
+    }
+
+    const unreadCount = await this.messagesRepository.count({
+      where: {
+        senderId: targetUserId,
+        recipientId: currentCustomerId,
+        isRead: 0,
+      },
+    });
+
+    return this.toConversationResponse(conversation, target, null, unreadCount, currentCustomerId);
+  }
+
+  async findConversations(query: PaginationQueryDto, currentCustomerId: string) {
+    const { page, size, skip } = resolvePagination(query);
+    const [conversations, total] = await this.conversationsRepository
+      .createQueryBuilder('conversation')
+      .where(
+        '((conversation.customerAId = :currentCustomerId AND conversation.deletedByA = 0) OR (conversation.customerBId = :currentCustomerId AND conversation.deletedByB = 0))',
+        { currentCustomerId },
+      )
+      .orderBy(
+        'CASE WHEN conversation.customer_a_id = :currentCustomerId THEN conversation.pinned_by_a ELSE conversation.pinned_by_b END',
+        'DESC',
+      )
+      .addOrderBy('conversation.lastMessageAt', 'DESC')
+      .addOrderBy('conversation.updatedAt', 'DESC')
+      .addOrderBy('conversation.id', 'DESC')
+      .skip(skip)
+      .take(size)
+      .getManyAndCount();
+
+    const peerIds = conversations.map((conversation) =>
+      conversation.customerAId === currentCustomerId
+        ? conversation.customerBId
+        : conversation.customerAId,
+    );
+    const messageIds = conversations
+      .map((conversation) => conversation.lastMessageId)
+      .filter((messageId): messageId is string => Boolean(messageId));
+
+    const [peers, messages] = await Promise.all([
+      peerIds.length ? this.customersRepository.findBy({ id: In(peerIds) }) : [],
+      messageIds.length ? this.messagesRepository.findBy({ id: In(messageIds) }) : [],
+    ]);
+    const peerMap = new Map(peers.map((peer) => [peer.id, peer]));
+    const messageMap = new Map(messages.map((message) => [message.id, message]));
+    const unreadRows = peerIds.length
+      ? await this.messagesRepository
+          .createQueryBuilder('message')
+          .select('message.senderId', 'senderId')
+          .addSelect('COUNT(*)', 'count')
+          .where('message.recipientId = :currentCustomerId', { currentCustomerId })
+          .andWhere('message.isRead = 0')
+          .andWhere('message.senderId IN (:...peerIds)', { peerIds })
+          .groupBy('message.senderId')
+          .getRawMany<{ senderId: string; count: string }>()
+      : [];
+    const unreadMap = new Map(unreadRows.map((row) => [row.senderId, Number(row.count)]));
+
+    const list = conversations.flatMap((conversation) => {
+      const peerId =
+        conversation.customerAId === currentCustomerId
+          ? conversation.customerBId
+          : conversation.customerAId;
+      const peer = peerMap.get(peerId);
+      if (!peer) {
+        return [];
+      }
+
+      const lastMessage = conversation.lastMessageId
+        ? (messageMap.get(conversation.lastMessageId) ?? null)
+        : null;
+      return [
+        this.toConversationResponse(
+          conversation,
+          peer,
+          lastMessage,
+          unreadMap.get(peerId) ?? 0,
+          currentCustomerId,
+        ),
+      ];
+    });
+
+    return createPaginationResult(list, total, page, size);
   }
 
   async follow(dto: FollowCustomerDto, currentCustomerId: string) {
@@ -165,6 +300,36 @@ export class SocialService {
     };
   }
 
+  async pinConversation(
+    conversationId: string,
+    dto: PinConversationDto,
+    currentCustomerId: string,
+  ) {
+    const conversation = await this.getConversationOrThrow(conversationId, currentCustomerId);
+    const currentIsA = conversation.customerAId === currentCustomerId;
+    await this.conversationsRepository.update(
+      conversation.id,
+      currentIsA ? { pinnedByA: dto.pinned ? 1 : 0 } : { pinnedByB: dto.pinned ? 1 : 0 },
+    );
+
+    return {
+      success: true,
+      id: conversation.id,
+      isPinned: dto.pinned,
+    };
+  }
+
+  async removeConversation(conversationId: string, currentCustomerId: string) {
+    const conversation = await this.getConversationOrThrow(conversationId, currentCustomerId);
+    const currentIsA = conversation.customerAId === currentCustomerId;
+    await this.conversationsRepository.update(
+      conversation.id,
+      currentIsA ? { deletedByA: 1, pinnedByA: 0 } : { deletedByB: 1, pinnedByB: 0 },
+    );
+
+    return { success: true, id: conversation.id };
+  }
+
   async sendMessage(dto: SendCustomerMessageDto, currentCustomerId: string) {
     if (dto.recipientId === currentCustomerId) {
       throw new ConflictException('不能给自己发送消息');
@@ -208,6 +373,25 @@ export class SocialService {
         readAt: null,
       }),
     );
+
+    const [customerAId, customerBId] = this.normalizePair(currentCustomerId, dto.recipientId);
+    await this.conversationsRepository
+      .createQueryBuilder()
+      .insert()
+      .into(CustomerConversation)
+      .values({ customerAId, customerBId, lastMessageId: null, lastMessageAt: null })
+      .orIgnore()
+      .execute();
+    await this.conversationsRepository.update(
+      { customerAId, customerBId },
+      {
+        lastMessageId: message.id,
+        lastMessageAt: message.createdAt,
+        deletedByA: 0,
+        deletedByB: 0,
+      },
+    );
+
     const response = this.toMessageResponse(
       message,
       await this.getCustomerOrThrow(currentCustomerId),
@@ -351,6 +535,47 @@ export class SocialService {
     };
   }
 
+  private normalizePair(left: string, right: string): [string, string] {
+    return BigInt(left) <= BigInt(right) ? [left, right] : [right, left];
+  }
+
+  private toConversationResponse(
+    conversation: CustomerConversation,
+    peer: CustomerUser,
+    lastMessage: CustomerMessage | null = null,
+    unreadCount = 0,
+    currentCustomerId?: string,
+  ) {
+    const currentIsA = conversation.customerAId === currentCustomerId;
+    return {
+      id: conversation.id,
+      user: this.toCustomerCard(peer),
+      lastMessage: lastMessage
+        ? {
+            id: lastMessage.id,
+            content: lastMessage.content,
+            senderId: lastMessage.senderId,
+            createdAt: lastMessage.createdAt,
+          }
+        : null,
+      lastMessageAt: conversation.lastMessageAt,
+      isPinned: currentIsA ? conversation.pinnedByA === 1 : conversation.pinnedByB === 1,
+      unreadCount,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+    };
+  }
+
+  private async getCustomerStats(customerId: string) {
+    const [followingCount, followersCount, dynamicCount] = await Promise.all([
+      this.followsRepository.count({ where: { followerId: customerId } }),
+      this.followsRepository.count({ where: { followingId: customerId } }),
+      this.dynamicsRepository.count({ where: { customerId } }),
+    ]);
+
+    return { followingCount, followersCount, dynamicCount };
+  }
+
   private async getCustomerOrThrow(customerId: string): Promise<CustomerUser> {
     const customer = await this.customersRepository.findOneBy({
       id: customerId,
@@ -361,6 +586,24 @@ export class SocialService {
       throw new NotFoundException(`用户 ${customerId} 不存在或不可用`);
     }
     return customer;
+  }
+
+  private async getConversationOrThrow(
+    conversationId: string,
+    currentCustomerId: string,
+  ): Promise<CustomerConversation> {
+    const conversation = await this.conversationsRepository.findOneBy({
+      id: conversationId,
+    });
+    if (
+      !conversation ||
+      (conversation.customerAId !== currentCustomerId &&
+        conversation.customerBId !== currentCustomerId)
+    ) {
+      throw new NotFoundException(`会话 ${conversationId} 不存在`);
+    }
+
+    return conversation;
   }
 
   private async isFollowing(followerId: string, followingId: string): Promise<boolean> {

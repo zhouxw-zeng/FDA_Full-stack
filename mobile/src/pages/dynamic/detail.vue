@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 
+import UserProfileCard from '@/components/UserProfileCard.vue';
 import {
   createForumComment,
   deleteForumComment,
@@ -13,8 +14,26 @@ import {
   toggleForumDynamicLike,
 } from '@/api/forum';
 import { resolveFileUrl } from '@/api/files';
+import {
+  fetchSocialUser,
+  followSocialUser,
+  openSocialConversation,
+  unfollowSocialUser,
+} from '@/api/social';
 import { useUserStore } from '@/stores/user';
-import type { ForumComment, ForumDynamic, ForumInteractionInfo, ForumMediaItem } from '@/types';
+import {
+  getSocialRelationState,
+  SOCIAL_RELATION_BUTTON_LABELS,
+  type SocialRelationState,
+} from '@/utils/social';
+import type {
+  ForumComment,
+  ForumDynamic,
+  ForumInteractionInfo,
+  ForumMediaItem,
+  SocialFollowState,
+  SocialUserDetail,
+} from '@/types';
 
 defineOptions({ name: 'DynamicDetail' });
 
@@ -39,6 +58,10 @@ const submitting = ref(false);
 const loadingReplies = ref<Record<string, boolean>>({});
 const busyAction = ref<InteractionAction | null>(null);
 const errorMessage = ref('');
+const profileVisible = ref(false);
+const profileLoading = ref(false);
+const profileUser = ref<SocialUserDetail | null>(null);
+const authorRelation = ref<SocialRelationState>('none');
 const commentsPage = ref(1);
 const commentsTotal = ref(0);
 const commentsSize = 20;
@@ -74,10 +97,6 @@ function goBack(): void {
     return;
   }
   uni.reLaunch({ url: '/pages/index/index' });
-}
-
-function handleTool(name: string): void {
-  uni.showToast({ title: `${name}功能预留中`, icon: 'none' });
 }
 
 function scrollToComments(): void {
@@ -198,6 +217,7 @@ async function loadDetail(id: string): Promise<void> {
 
   try {
     dynamic.value = await fetchForumDynamicDetail(id);
+    await loadAuthorFollowState();
     try {
       await loadComments(true);
     } catch {
@@ -209,6 +229,107 @@ async function loadDetail(id: string): Promise<void> {
   } finally {
     loading.value = false;
   }
+}
+
+async function loadAuthorFollowState(): Promise<void> {
+  if (!dynamic.value || isOwnAuthor.value) {
+    authorRelation.value = 'none';
+    return;
+  }
+
+  try {
+    const user = await fetchSocialUser(dynamic.value.author.id);
+    authorRelation.value = getSocialRelationState(user);
+  } catch {
+    authorRelation.value = 'none';
+  }
+}
+
+async function toggleAuthorFollow(): Promise<void> {
+  if (!dynamic.value || isOwnAuthor.value) {
+    return;
+  }
+
+  const shouldUnfollow = authorRelation.value !== 'none';
+  try {
+    const state = shouldUnfollow
+      ? await unfollowSocialUser(dynamic.value.author.id)
+      : await followSocialUser(dynamic.value.author.id);
+    authorRelation.value = getSocialRelationState(state);
+    if (profileUser.value?.id === dynamic.value.author.id) {
+      profileUser.value = {
+        ...profileUser.value,
+        isFollowing: state.isFollowing,
+        isFollowedBy: state.isFollowedBy,
+        isMutual: state.isMutual,
+        canChat: state.canChat,
+      };
+    }
+    uni.showToast({
+      title: shouldUnfollow
+        ? '已取消关注'
+        : SOCIAL_RELATION_BUTTON_LABELS[getSocialRelationState(state)],
+      icon: 'none',
+    });
+  } catch (error) {
+    uni.showToast({
+      title: error instanceof Error ? error.message : '操作失败',
+      icon: 'none',
+    });
+  }
+}
+
+async function openUserProfile(userId?: string): Promise<void> {
+  if (!userId || userId === userStore.user?.id) {
+    return;
+  }
+
+  profileVisible.value = true;
+  profileLoading.value = true;
+  profileUser.value = null;
+  try {
+    profileUser.value = await fetchSocialUser(userId);
+  } catch (error) {
+    profileVisible.value = false;
+    uni.showToast({
+      title: error instanceof Error ? error.message : '加载用户资料失败',
+      icon: 'none',
+    });
+  } finally {
+    profileLoading.value = false;
+  }
+}
+
+function handleProfileFollowChange(state: SocialFollowState): void {
+  if (dynamic.value && state.targetUserId === dynamic.value.author.id) {
+    authorRelation.value = getSocialRelationState(state);
+  }
+}
+
+async function handleProfileChat(user: SocialUserDetail): Promise<void> {
+  try {
+    const conversation = await openSocialConversation(user.id);
+    profileVisible.value = false;
+    uni.navigateTo({
+      url: `/pages/social/chat?id=${encodeURIComponent(
+        conversation.id,
+      )}&userId=${encodeURIComponent(user.id)}&name=${encodeURIComponent(user.nickname)}`,
+    });
+  } catch (error) {
+    uni.showToast({
+      title: error instanceof Error ? error.message : '创建会话失败',
+      icon: 'none',
+    });
+  }
+}
+
+function handleProfileDynamics(user: SocialUserDetail): void {
+  profileVisible.value = false;
+  uni.navigateTo({
+    url: `/pages/social/dynamics?id=${encodeURIComponent(user.id)}&name=${encodeURIComponent(
+      user.nickname,
+    )}`,
+  });
 }
 
 async function handleLike(): Promise<void> {
@@ -521,8 +642,11 @@ onLoad((query) => {
           class="author-avatar author-avatar-image"
           :src="authorAvatarUrl"
           mode="aspectFill"
+          @tap="openUserProfile(dynamic.author.id)"
         />
-        <view v-else class="author-avatar">{{ authorAvatar }}</view>
+        <view v-else class="author-avatar" @tap="openUserProfile(dynamic.author.id)">
+          {{ authorAvatar }}
+        </view>
         <view class="author-copy">
           <view class="author-name-row">
             <text class="author-name">{{ authorName }}</text>
@@ -530,7 +654,14 @@ onLoad((query) => {
           </view>
           <text class="author-meta">{{ formatDateTime(dynamic.createdAt) }}</text>
         </view>
-        <button v-if="!isOwnAuthor" class="follow-button" @tap="handleTool('关注')">关注</button>
+        <button
+          v-if="!isOwnAuthor"
+          class="follow-button"
+          :class="`follow-button--${authorRelation}`"
+          @tap="toggleAuthorFollow"
+        >
+          {{ SOCIAL_RELATION_BUTTON_LABELS[authorRelation] }}
+        </button>
       </view>
 
       <view class="tool-card">
@@ -584,8 +715,11 @@ onLoad((query) => {
             class="comment-avatar comment-avatar-image"
             :src="commentAvatarUrl(comment)"
             mode="aspectFill"
+            @tap="openUserProfile(comment.author?.id)"
           />
-          <view v-else class="comment-avatar">{{ commentAvatar(comment) }}</view>
+          <view v-else class="comment-avatar" @tap="openUserProfile(comment.author?.id)">
+            {{ commentAvatar(comment) }}
+          </view>
           <view class="comment-body">
             <view class="comment-author-row">
               <text class="comment-author">{{ commentAuthor(comment) }}</text>
@@ -638,8 +772,11 @@ onLoad((query) => {
                   class="reply-avatar reply-avatar-image"
                   :src="commentAvatarUrl(reply)"
                   mode="aspectFill"
+                  @tap="openUserProfile(reply.author?.id)"
                 />
-                <view v-else class="reply-avatar">{{ commentAvatar(reply) }}</view>
+                <view v-else class="reply-avatar" @tap="openUserProfile(reply.author?.id)">
+                  {{ commentAvatar(reply) }}
+                </view>
                 <view class="reply-body">
                   <view class="comment-author-row">
                     <text class="comment-author">{{ commentAuthor(reply) }}</text>
@@ -677,6 +814,15 @@ onLoad((query) => {
         </view>
       </view>
     </view>
+
+    <UserProfileCard
+      v-model:visible="profileVisible"
+      :user="profileUser"
+      :loading="profileLoading"
+      @follow-change="handleProfileFollowChange"
+      @chat="handleProfileChat"
+      @dynamics="handleProfileDynamics"
+    />
   </view>
 </template>
 
@@ -874,12 +1020,43 @@ onLoad((query) => {
   flex: none;
   width: 112rpx;
   height: 56rpx;
-  color: #c76f96;
+  color: #fffdfa;
   font-size: 23rpx;
   line-height: 54rpx;
-  background: #fff8ef;
-  border: 1rpx solid rgba(199, 111, 150, 0.42);
+  background: linear-gradient(
+    135deg,
+    $rococo-bright-pink 0%,
+    $rococo-rose 58%,
+    $rococo-bright-pink 100%
+  );
+  border: 1rpx solid rgba($rococo-gold-pale, 0.72);
   border-radius: 8rpx;
+  box-sizing: border-box;
+  box-shadow:
+    0 6rpx 14rpx rgba($rococo-rose, 0.2),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.5);
+}
+
+.follow-button--following {
+  color: $rococo-rose;
+  background: linear-gradient(
+    135deg,
+    rgba($rococo-paper, 0.98),
+    rgba($rococo-pink-blue, 0.26)
+  );
+  border: 1rpx solid rgba($rococo-gold-rich, 0.46);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.9);
+}
+
+.follow-button--mutual {
+  color: $rococo-gold-rich;
+  background: linear-gradient(
+    135deg,
+    rgba($rococo-gold-pale, 0.62),
+    rgba($rococo-cream, 0.92)
+  );
+  border: 1rpx solid rgba($rococo-gold-rich, 0.52);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.85);
 }
 
 .tool-card {

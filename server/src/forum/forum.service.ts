@@ -40,7 +40,7 @@ export class ForumService {
   ) {}
 
   async findAll(queryForumDynamicDto: QueryForumDynamicDto, customerId?: string) {
-    const { keyword, topic, typeId, pinned, auditStatus, enabled } = queryForumDynamicDto;
+    const { keyword, title, topic, typeId, pinned, auditStatus, enabled } = queryForumDynamicDto;
     const { page, size, skip } = resolvePagination(queryForumDynamicDto);
     const query = this.dynamicsRepository
       .createQueryBuilder('dynamic')
@@ -52,6 +52,11 @@ export class ForumService {
         '(dynamic.content LIKE :keyword OR dynamic.id LIKE :keyword OR customer.nickname LIKE :keyword)',
         { keyword: `%${keyword}%` },
       );
+    }
+    if (title) {
+      query.andWhere('dynamic.title LIKE :title', {
+        title: `%${title.trim()}%`,
+      });
     }
     if (topic) {
       query.andWhere('dynamic.topic = :topic', { topic });
@@ -214,6 +219,33 @@ export class ForumService {
       .map((dynamic) => this.toResponse(dynamic, interactionStates.get(dynamic.id)));
 
     return createPaginationResult(list, total, page, size);
+  }
+
+  async findByCustomer(customerId: string, query: PaginationQueryDto, currentCustomerId?: string) {
+    const { page, size, skip } = resolvePagination(query);
+    const [list, total] = await this.dynamicsRepository.findAndCount({
+      where: {
+        customerId,
+        auditStatus: 'approved',
+        enabled: 1,
+      },
+      relations: { customer: true, type: true },
+      order: { createdAt: 'DESC' },
+      skip,
+      take: size,
+    });
+
+    const interactionStates = await this.getInteractionStates(
+      list.map((dynamic) => dynamic.id),
+      currentCustomerId,
+    );
+
+    return createPaginationResult(
+      list.map((dynamic) => this.toResponse(dynamic, interactionStates.get(dynamic.id))),
+      total,
+      page,
+      size,
+    );
   }
 
   async findOne(id: string, customerId?: string) {

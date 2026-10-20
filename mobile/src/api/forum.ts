@@ -11,7 +11,7 @@ import type {
   UpdateMyForumDynamicPayload,
 } from '@/types';
 
-function normalizeDynamic(dynamic: ForumDynamic): ForumDynamic {
+export function normalizeDynamic(dynamic: ForumDynamic): ForumDynamic {
   return {
     ...dynamic,
     typeId: Number(dynamic.typeId),
@@ -75,6 +75,20 @@ export async function fetchMyFavoritedForumDynamics(
   size = 10,
 ): Promise<PageResult<ForumDynamic>> {
   const result = await http.get<PageResult<ForumDynamic>>('/forum/dynamics/favorited', {
+    page,
+    size,
+  });
+
+  return { ...result, list: result.list.map(normalizeDynamic) };
+}
+
+export async function searchForumDynamicsByTitle(
+  title: string,
+  page = 1,
+  size = 10,
+): Promise<PageResult<ForumDynamic>> {
+  const result = await http.get<PageResult<ForumDynamic>>('/forum/dynamics/search', {
+    title,
     page,
     size,
   });

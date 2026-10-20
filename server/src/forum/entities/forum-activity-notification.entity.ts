@@ -1,10 +1,7 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 export type ForumNotificationType =
-  | 'dynamic_like'
-  | 'dynamic_comment'
-  | 'comment_reply'
-  | 'user_follow';
+  'dynamic_like' | 'dynamic_comment' | 'comment_reply' | 'user_follow';
 
 @Entity('forum_activity_notifications')
 export class ForumActivityNotification {

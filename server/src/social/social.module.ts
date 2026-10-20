@@ -5,6 +5,7 @@ import { ForumDynamic } from '../forum/entities/forum-dynamic.entity';
 import { ForumModule } from '../forum/forum.module';
 import { MobileAuthModule } from '../mobile-auth/mobile-auth.module';
 import { CustomerImGateway } from './customer-im.gateway';
+import { CustomerConversation } from './entities/customer-conversation.entity';
 import { CustomerFollow } from './entities/customer-follow.entity';
 import { CustomerMessage } from './entities/customer-message.entity';
 import { SocialController } from './social.controller';
@@ -12,7 +13,13 @@ import { SocialService } from './social.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CustomerUser, CustomerFollow, CustomerMessage, ForumDynamic]),
+    TypeOrmModule.forFeature([
+      CustomerUser,
+      CustomerFollow,
+      CustomerMessage,
+      CustomerConversation,
+      ForumDynamic,
+    ]),
     ForumModule,
     MobileAuthModule,
   ],

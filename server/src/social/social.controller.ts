@@ -5,6 +5,8 @@ import { PaginationQueryDto } from '../common/pagination/pagination-query.dto';
 import { CurrentMobileCustomer } from '../mobile-auth/decorators/current-mobile-customer.decorator';
 import { MobileAuthGuard } from '../mobile-auth/guards/mobile-auth.guard';
 import { FollowCustomerDto } from './dto/follow-customer.dto';
+import { OpenConversationDto } from './dto/open-conversation.dto';
+import { PinConversationDto } from './dto/pin-conversation.dto';
 import { QuerySocialUserDto } from './dto/query-social-user.dto';
 import { SendCustomerMessageDto } from './dto/send-customer-message.dto';
 import { SocialService } from './social.service';
@@ -31,11 +33,57 @@ export class SocialController {
     return this.socialService.findUser(userId, customerId);
   }
 
+  @Get('users/:userId/dynamics')
+  @ApiOperation({ summary: '分页查询指定用户已发布的动态（移动端）' })
+  @ApiOkResponse({ description: '查询成功' })
+  findUserDynamics(
+    @Param('userId') userId: string,
+    @Query() query: PaginationQueryDto,
+    @CurrentMobileCustomer() customerId: string,
+  ) {
+    return this.socialService.findUserDynamics(userId, query, customerId);
+  }
+
   @Get('stats')
   @ApiOperation({ summary: '查询当前用户关注、粉丝与动态数量（移动端）' })
   @ApiOkResponse({ description: '查询成功' })
   getStats(@CurrentMobileCustomer() customerId: string) {
     return this.socialService.getStats(customerId);
+  }
+
+  @Get('conversations')
+  @ApiOperation({ summary: '分页查询当前用户的一对一会话（移动端）' })
+  @ApiOkResponse({ description: '查询成功' })
+  findConversations(
+    @Query() query: PaginationQueryDto,
+    @CurrentMobileCustomer() customerId: string,
+  ) {
+    return this.socialService.findConversations(query, customerId);
+  }
+
+  @Post('conversations')
+  @ApiOperation({ summary: '创建或获取与指定用户的一对一会话（移动端）' })
+  @ApiOkResponse({ description: '操作成功' })
+  openConversation(@Body() dto: OpenConversationDto, @CurrentMobileCustomer() customerId: string) {
+    return this.socialService.openConversation(dto.targetUserId, customerId);
+  }
+
+  @Put('conversations/:id/pin')
+  @ApiOperation({ summary: '置顶或取消置顶当前用户会话（移动端）' })
+  @ApiOkResponse({ description: '操作成功' })
+  pinConversation(
+    @Param('id') id: string,
+    @Body() dto: PinConversationDto,
+    @CurrentMobileCustomer() customerId: string,
+  ) {
+    return this.socialService.pinConversation(id, dto, customerId);
+  }
+
+  @Delete('conversations/:id')
+  @ApiOperation({ summary: '从当前用户聊天列表删除会话（移动端）' })
+  @ApiOkResponse({ description: '删除成功' })
+  removeConversation(@Param('id') id: string, @CurrentMobileCustomer() customerId: string) {
+    return this.socialService.removeConversation(id, customerId);
   }
 
   @Get('friends')

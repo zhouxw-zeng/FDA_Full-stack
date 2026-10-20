@@ -1,12 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 
-import { fetchForumDynamics } from '@/api/forum';
+import { fetchForumDynamics, searchForumDynamicsByTitle } from '@/api/forum';
 import { resolveFileUrl } from '@/api/files';
+import FeedSearch from '@/components/FeedSearch.vue';
+import { usePullRefresh } from '@/composables/usePullRefresh';
 import { useUserStore } from '@/stores/user';
 import type { ForumDynamic } from '@/types';
 
 defineOptions({ name: 'HomeFeed' });
+
+const props = withDefaults(
+  defineProps<{
+    resetToken?: number;
+  }>(),
+  {
+    resetToken: 0,
+  },
+);
 
 interface FeedCard extends ForumDynamic {
   cardTitle: string;
@@ -25,7 +36,21 @@ const loading = ref(false);
 const page = ref(1);
 const total = ref(0);
 const size = 10;
+const activeKeyword = ref('');
 const hasMore = computed(() => items.value.length < total.value);
+
+const {
+  pullDistance,
+  pullText,
+  scrollIntoView,
+  onScroll,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
+  reset,
+} = usePullRefresh({
+  onRefresh: () => loadFeed(true),
+});
 
 function toFeedCard(item: ForumDynamic, index: number): FeedCard {
   const firstMedia = item.media?.[0];
@@ -72,12 +97,14 @@ async function loadFeed(reset = false): Promise<void> {
   }
 
   try {
-    const result = await fetchForumDynamics({
-      page: page.value,
-      size,
-      auditStatus: 'approved',
-      enabled: 1,
-    });
+    const result = activeKeyword.value
+      ? await searchForumDynamicsByTitle(activeKeyword.value, page.value, size)
+      : await fetchForumDynamics({
+          page: page.value,
+          size,
+          auditStatus: 'approved',
+          enabled: 1,
+        });
     items.value = reset ? result.list : [...items.value, ...result.list];
     total.value = result.total;
     if (result.list.length) {
@@ -92,6 +119,16 @@ function loadMore(): void {
   if (hasMore.value) {
     void loadFeed();
   }
+}
+
+function handleSearch(keyword: string): void {
+  activeKeyword.value = keyword;
+  void loadFeed(true);
+}
+
+function handleSearchReset(): void {
+  activeKeyword.value = '';
+  void loadFeed(true);
 }
 
 function goLogin(): void {
@@ -114,6 +151,14 @@ onMounted(() => {
 });
 
 watch(
+  () => props.resetToken,
+  () => {
+    activeKeyword.value = '';
+    void reset();
+  },
+);
+
+watch(
   () => userStore.isLoggedIn,
   (loggedIn) => {
     if (loggedIn && items.value.length === 0) {
@@ -130,6 +175,7 @@ watch(
         <text class="feed-kicker">Moments</text>
         <text class="feed-title">动态</text>
       </view>
+      <FeedSearch @search="handleSearch" @reset="handleSearchReset" />
     </view>
 
     <scroll-view
@@ -137,8 +183,20 @@ watch(
       class="waterfall-scroll"
       scroll-y
       :show-scrollbar="false"
+      :scroll-into-view="scrollIntoView"
+      scroll-with-animation
+      @scroll="onScroll"
+      @touchstart="onTouchStart"
+      @touchmove="onTouchMove"
+      @touchend="onTouchEnd"
+      @touchcancel="onTouchEnd"
       @scrolltolower="loadMore"
     >
+      <view id="list-top"></view>
+      <view v-if="pullDistance > 0" class="pull-refresh" :style="{ height: `${pullDistance}px` }">
+        <text class="pull-refresh-text">{{ pullText }}</text>
+      </view>
+
       <view v-if="loading && items.length === 0" class="state-panel">正在加载动态</view>
       <view v-else-if="items.length === 0" class="state-panel">暂无动态</view>
 
@@ -234,6 +292,7 @@ watch(
 }
 
 .feed-header {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
@@ -275,6 +334,23 @@ watch(
   box-sizing: border-box;
   overflow-x: hidden;
   scrollbar-width: none;
+}
+
+#list-top {
+  height: 0;
+}
+
+.pull-refresh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: $rococo-muted;
+  font-size: 22rpx;
+}
+
+.pull-refresh-text {
+  line-height: 1;
 }
 
 /* #ifdef H5 */

@@ -1,19 +1,33 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 
+import UserProfileCard from '@/components/UserProfileCard.vue';
 import { resolveFileUrl } from '@/api/files';
-import { fetchSocialFriends, followSocialUser, unfollowSocialUser } from '@/api/social';
-import type { SocialFollowState, SocialUser } from '@/types';
+import { fetchSocialFriends, fetchSocialUser, openSocialConversation } from '@/api/social';
+import { usePullRefresh } from '@/composables/usePullRefresh';
+import type { SocialUser, SocialUserDetail } from '@/types';
 
 defineOptions({ name: 'FriendsPanel' });
+
+const props = withDefaults(
+  defineProps<{
+    resetToken?: number;
+  }>(),
+  {
+    resetToken: 0,
+  },
+);
 
 const friends = ref<SocialUser[]>([]);
 const total = ref(0);
 const page = ref(1);
 const size = 15;
 const loading = ref(false);
-const actingId = ref('');
+const cardVisible = ref(false);
+const cardLoading = ref(false);
+const chatLoading = ref(false);
+const selectedUser = ref<SocialUserDetail | null>(null);
 const hasMore = computed(() => friends.value.length < total.value);
 
 function avatarUrl(user: SocialUser): string {
@@ -47,45 +61,67 @@ async function loadFriends(reset = false): Promise<void> {
   }
 }
 
-function applyFollowState(targetUserId: string, state: SocialFollowState): void {
-  const previousCount = friends.value.length;
-  friends.value = friends.value
-    .map((user) =>
-      user.id === targetUserId
-        ? {
-            ...user,
-            isFollowing: state.isFollowing,
-            isFollowedBy: state.isFollowedBy,
-            isMutual: state.isMutual,
-            canChat: state.canChat,
-          }
-        : user,
-    )
-    .filter((user) => user.isMutual);
-  total.value = Math.max(0, total.value - (previousCount - friends.value.length));
-}
+const {
+  pullDistance,
+  pullText,
+  scrollIntoView,
+  onScroll,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
+  reset,
+} = usePullRefresh({
+  onRefresh: () => loadFriends(true),
+});
 
-async function toggleFollow(user: SocialUser): Promise<void> {
-  if (actingId.value) {
-    return;
-  }
-
-  const wasFollowing = user.isFollowing;
-  actingId.value = user.id;
+async function openUser(user: SocialUser): Promise<void> {
+  cardVisible.value = true;
+  cardLoading.value = true;
+  selectedUser.value = null;
   try {
-    const state = wasFollowing
-      ? await unfollowSocialUser(user.id)
-      : await followSocialUser(user.id);
-    applyFollowState(user.id, state);
-    uni.showToast({ title: wasFollowing ? '已取消关注' : '已关注', icon: 'none' });
+    selectedUser.value = await fetchSocialUser(user.id);
   } catch (error) {
+    cardVisible.value = false;
     uni.showToast({
-      title: error instanceof Error ? error.message : '操作失败',
+      title: error instanceof Error ? error.message : '加载用户失败',
       icon: 'none',
     });
   } finally {
-    actingId.value = '';
+    cardLoading.value = false;
   }
+}
+
+async function handleChat(user: SocialUserDetail): Promise<void> {
+  if (chatLoading.value) {
+    return;
+  }
+
+  chatLoading.value = true;
+  try {
+    const conversation = await openSocialConversation(user.id);
+    cardVisible.value = false;
+    uni.navigateTo({
+      url: `/pages/social/chat?id=${encodeURIComponent(
+        conversation.id,
+      )}&userId=${encodeURIComponent(user.id)}&name=${encodeURIComponent(user.nickname)}`,
+    });
+  } catch (error) {
+    uni.showToast({
+      title: error instanceof Error ? error.message : '创建会话失败',
+      icon: 'none',
+    });
+  } finally {
+    chatLoading.value = false;
+  }
+}
+
+function handleDynamics(user: SocialUserDetail): void {
+  cardVisible.value = false;
+  uni.navigateTo({
+    url: `/pages/social/dynamics?id=${encodeURIComponent(user.id)}&name=${encodeURIComponent(
+      user.nickname,
+    )}`,
+  });
 }
 
 function loadMore(): void {
@@ -101,6 +137,13 @@ function addFriend(): void {
 onShow(() => {
   void loadFriends(true);
 });
+
+watch(
+  () => props.resetToken,
+  () => {
+    void reset();
+  },
+);
 </script>
 
 <template>
@@ -119,7 +162,24 @@ onShow(() => {
       </button>
     </view>
 
-    <scroll-view class="friends-scroll" scroll-y :show-scrollbar="false" @scrolltolower="loadMore">
+    <scroll-view
+      class="friends-scroll"
+      scroll-y
+      :show-scrollbar="false"
+      :scroll-into-view="scrollIntoView"
+      scroll-with-animation
+      @scroll="onScroll"
+      @touchstart="onTouchStart"
+      @touchmove="onTouchMove"
+      @touchend="onTouchEnd"
+      @touchcancel="onTouchEnd"
+      @scrolltolower="loadMore"
+    >
+      <view id="list-top"></view>
+      <view v-if="pullDistance > 0" class="pull-refresh" :style="{ height: `${pullDistance}px` }">
+        <text class="pull-refresh-text">{{ pullText }}</text>
+      </view>
+
       <view v-if="loading && friends.length === 0" class="friends-state">正在加载好友</view>
 
       <view v-else-if="friends.length === 0" class="friends-empty">
@@ -132,7 +192,12 @@ onShow(() => {
       </view>
 
       <view v-else class="friends-list">
-        <view v-for="user in friends" :key="user.id" class="friend-card">
+        <view
+          v-for="user in friends"
+          :key="user.id"
+          class="friend-card"
+          @tap="openUser(user)"
+        >
           <view class="friend-avatar">
             <image
               v-if="avatarUrl(user)"
@@ -146,24 +211,24 @@ onShow(() => {
           <view class="friend-main">
             <view class="friend-title-row">
               <text class="friend-name">{{ user.nickname }}</text>
-              <text class="friend-badge">好友</text>
+              <text class="friend-badge">互关</text>
             </view>
             <text class="friend-signature">{{ user.signature || user.region || '这个人很神秘' }}</text>
           </view>
-
-          <button
-            class="follow-button"
-            :disabled="actingId === user.id"
-            @tap.stop="toggleFollow(user)"
-          >
-            {{ actingId === user.id ? '处理中' : '取消关注' }}
-          </button>
         </view>
       </view>
 
       <view v-if="loading && friends.length > 0" class="friends-state">正在加载</view>
       <view v-else-if="!hasMore && friends.length > 0" class="friends-state">已经到底了</view>
     </scroll-view>
+
+    <UserProfileCard
+      v-model:visible="cardVisible"
+      :user="selectedUser"
+      :loading="cardLoading"
+      @chat="handleChat"
+      @dynamics="handleDynamics"
+    />
   </view>
 </template>
 
@@ -245,6 +310,23 @@ onShow(() => {
   box-sizing: border-box;
   overflow-x: hidden;
   scrollbar-width: none;
+}
+
+#list-top {
+  height: 0;
+}
+
+.pull-refresh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: $rococo-muted;
+  font-size: 22rpx;
+}
+
+.pull-refresh-text {
+  line-height: 1;
 }
 
 /* #ifdef H5 */
@@ -395,21 +477,4 @@ onShow(() => {
   white-space: nowrap;
 }
 
-.follow-button {
-  flex: none;
-  min-width: 132rpx;
-  height: 60rpx;
-  margin-left: 14rpx;
-  padding: 0 16rpx;
-  color: $rococo-rose;
-  font-size: 21rpx;
-  line-height: 58rpx;
-  background: rgba($rococo-paper, 0.9);
-  border: 1rpx solid rgba($rococo-rose, 0.34);
-  border-radius: 30rpx;
-}
-
-.follow-button[disabled] {
-  opacity: 0.6;
-}
 </style>

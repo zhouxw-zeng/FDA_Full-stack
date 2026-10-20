@@ -54,7 +54,7 @@ function ensureGreeting(): void {
   messages.value.push({
     id: 'welcome',
     role: 'assistant',
-    content: '你好，我是家庭动态助手AI中控。今天想从哪一处开始？',
+    content: '你好，我是你的AI小助手。请问您有什么需要我帮助的呀~',
     createdAt: new Date().toISOString(),
   });
 }

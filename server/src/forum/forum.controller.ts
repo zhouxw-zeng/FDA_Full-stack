@@ -22,6 +22,7 @@ import { ForumDynamicResponseDto } from './dto/forum-dynamic-response.dto';
 import { QueryForumCommentDto } from './dto/query-forum-comment.dto';
 import { QueryMyForumDynamicDto } from './dto/query-my-forum-dynamic.dto';
 import { QueryForumDynamicDto } from './dto/query-forum-dynamic.dto';
+import { QueryForumDynamicTitleDto } from './dto/query-forum-dynamic-title.dto';
 import { ShareForumDynamicDto } from './dto/share-forum-dynamic.dto';
 import { UpdateMyForumDynamicDto } from './dto/update-my-forum-dynamic.dto';
 import { ForumCommentsService } from './forum-comments.service';
@@ -149,6 +150,31 @@ export class ForumController {
   )
   findLiked(@Query() query: PaginationQueryDto, @CurrentMobileCustomer() customerId: string) {
     return this.forumService.findLiked(query, customerId);
+  }
+
+  @Get('dynamics/search')
+  @Public()
+  @UseGuards(MobileAuthGuard)
+  @ApiOperation({ summary: '根据标题模糊搜索已发布动态（移动端）' })
+  @ApiOkResponse(
+    apiDataResponse(ForumDynamicPageResponseDto, {
+      description: '查询成功',
+    }),
+  )
+  searchByTitle(
+    @Query() query: QueryForumDynamicTitleDto,
+    @CurrentMobileCustomer() customerId: string,
+  ) {
+    return this.forumService.findAll(
+      {
+        page: query.page,
+        size: query.size,
+        title: query.title,
+        auditStatus: 'approved',
+        enabled: 1,
+      },
+      customerId,
+    );
   }
 
   @Get('dynamics/favorited')

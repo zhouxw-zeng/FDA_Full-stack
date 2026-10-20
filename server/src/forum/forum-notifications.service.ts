@@ -162,9 +162,7 @@ export class ForumNotificationsService {
 
     return notifications.map((notification) => {
       const actor = actorMap.get(notification.actorId);
-      const dynamic = notification.dynamicId
-        ? dynamicMap.get(notification.dynamicId)
-        : undefined;
+      const dynamic = notification.dynamicId ? dynamicMap.get(notification.dynamicId) : undefined;
 
       return {
         id: notification.id,

@@ -4,6 +4,11 @@ import { onLoad } from '@dcloudio/uni-app';
 
 import { resolveFileUrl } from '@/api/files';
 import { followSocialUser, searchSocialUsers, unfollowSocialUser } from '@/api/social';
+import {
+  getSocialRelationState,
+  isFollowedByOnly,
+  SOCIAL_RELATION_BUTTON_LABELS,
+} from '@/utils/social';
 import type { SocialFollowState, SocialUser } from '@/types';
 
 defineOptions({ name: 'SocialSearch' });
@@ -182,8 +187,8 @@ onUnmounted(() => {
           <view class="user-main">
             <view class="user-title-row">
               <text class="user-name">{{ user.nickname }}</text>
-              <text v-if="user.isMutual" class="user-badge user-badge--mutual">好友</text>
-              <text v-else-if="user.isFollowedBy" class="user-badge">关注了你</text>
+              <text v-if="user.isMutual" class="user-badge user-badge--mutual">互关</text>
+              <text v-else-if="isFollowedByOnly(user)" class="user-badge">关注了你</text>
             </view>
             <text class="user-signature">
               {{ user.signature || user.region || '这个人很神秘' }}
@@ -192,18 +197,14 @@ onUnmounted(() => {
 
           <button
             class="follow-button"
-            :class="{ 'follow-button--active': user.isFollowing }"
+            :class="`follow-button--${getSocialRelationState(user)}`"
             :disabled="actingId === user.id"
             @tap.stop="toggleFollow(user)"
           >
             {{
               actingId === user.id
                 ? '处理中'
-                : user.isFollowing
-                  ? '已关注'
-                  : user.isFollowedBy
-                    ? '回关'
-                    : '关注'
+                : SOCIAL_RELATION_BUTTON_LABELS[getSocialRelationState(user)]
             }}
           </button>
         </view>
@@ -426,14 +427,40 @@ onUnmounted(() => {
   color: #fffdfa;
   font-size: 22rpx;
   line-height: 58rpx;
-  background: $rococo-rose;
+  background: linear-gradient(
+    135deg,
+    $rococo-bright-pink 0%,
+    $rococo-rose 58%,
+    $rococo-bright-pink 100%
+  );
+  border: 1rpx solid rgba($rococo-gold-pale, 0.72);
   border-radius: 30rpx;
+  box-sizing: border-box;
+  box-shadow:
+    0 8rpx 18rpx rgba($rococo-rose, 0.22),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.5);
 }
 
-.follow-button--active {
+.follow-button--following {
   color: $rococo-rose;
-  background: rgba($rococo-paper, 0.9);
-  border: 1rpx solid rgba($rococo-rose, 0.34);
+  background: linear-gradient(
+    135deg,
+    rgba($rococo-paper, 0.98),
+    rgba($rococo-pink-blue, 0.26)
+  );
+  border: 1rpx solid rgba($rococo-gold-rich, 0.46);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.9);
+}
+
+.follow-button--mutual {
+  color: $rococo-gold-rich;
+  background: linear-gradient(
+    135deg,
+    rgba($rococo-gold-pale, 0.62),
+    rgba($rococo-cream, 0.92)
+  );
+  border: 1rpx solid rgba($rococo-gold-rich, 0.52);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.85);
 }
 
 .follow-button[disabled] {

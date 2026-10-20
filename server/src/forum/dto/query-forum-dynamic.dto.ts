@@ -10,6 +10,12 @@ export class QueryForumDynamicDto extends PaginationQueryDto {
   @MaxLength(100)
   keyword?: string;
 
+  @ApiPropertyOptional({ example: '虚拟数据1' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  title?: string;
+
   @ApiPropertyOptional({ example: '城市夜景' })
   @IsOptional()
   @IsString()

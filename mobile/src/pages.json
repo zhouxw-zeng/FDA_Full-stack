@@ -90,6 +90,22 @@
         "enablePullDownRefresh": false,
         "navigationBarTextStyle": "black"
       }
+    },
+    {
+      "path": "pages/social/dynamics",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/social/chat",
+      "style": {
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "navigationBarTextStyle": "black"
+      }
     }
   ],
   "globalStyle": {

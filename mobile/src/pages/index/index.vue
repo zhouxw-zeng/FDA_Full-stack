@@ -10,6 +10,13 @@ import ProfilePanel from '@/components/ProfilePanel.vue';
 import type { TabItem } from '@/components/types';
 
 const activeTab = ref<TabItem['key']>('home');
+const resetTokens = ref<Record<TabItem['key'], number>>({
+  ai: 0,
+  home: 0,
+  chat: 0,
+  friends: 0,
+  profile: 0,
+});
 const tabs: TabItem[] = [
   {
     key: 'ai',
@@ -44,7 +51,12 @@ const tabs: TabItem[] = [
 ];
 
 function changeTab(key: string): void {
-  activeTab.value = key as TabItem['key'];
+  const next = key as TabItem['key'];
+  if (next === activeTab.value) {
+    resetTokens.value[next] += 1;
+    return;
+  }
+  activeTab.value = next;
 }
 </script>
 
@@ -52,9 +64,13 @@ function changeTab(key: string): void {
   <view class="app-shell">
     <view class="shell-main">
       <AiChatPanel v-show="activeTab === 'ai'" />
-      <HomeFeed v-show="activeTab === 'home'" />
-      <ChatPanel v-show="activeTab === 'chat'" @friends="changeTab('friends')" />
-      <FriendsPanel v-show="activeTab === 'friends'" />
+      <HomeFeed v-show="activeTab === 'home'" :reset-token="resetTokens.home" />
+      <ChatPanel
+        v-show="activeTab === 'chat'"
+        :reset-token="resetTokens.chat"
+        @friends="changeTab('friends')"
+      />
+      <FriendsPanel v-show="activeTab === 'friends'" :reset-token="resetTokens.friends" />
       <ProfilePanel v-show="activeTab === 'profile'" @chat="changeTab('ai')" />
     </view>
     <AppTabBar :active="activeTab" :items="tabs" @change="changeTab" />
