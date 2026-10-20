@@ -108,6 +108,12 @@ function handleMetric(key: MetricKey): void {
   uni.navigateTo({ url: '/pages/dynamic/liked' });
 }
 
+function handleSocialStat(key: string): void {
+  if (key === 'following' || key === 'followers') {
+    uni.navigateTo({ url: `/pages/social/relations?type=${key}` });
+  }
+}
+
 async function initialize(): Promise<void> {
   if (!userStore.isLoggedIn) {
     return;
@@ -284,7 +290,13 @@ watch(
             </view>
 
             <view class="social-stats">
-              <view v-for="stat in socialStats" :key="stat.key" class="social-stat">
+              <view
+                v-for="stat in socialStats"
+                :key="stat.key"
+                class="social-stat"
+                hover-class="social-stat--hover"
+                @tap="handleSocialStat(stat.key)"
+              >
                 <text class="social-value">{{ stat.value }}</text>
                 <text class="social-label">{{ stat.label }}</text>
               </view>
@@ -600,6 +612,10 @@ $radius-small: 12px;
   margin-top: 4rpx;
   color: $text-sub;
   font-size: 21rpx;
+}
+
+.social-stat--hover {
+  opacity: 0.72;
 }
 
 .stats-grid {

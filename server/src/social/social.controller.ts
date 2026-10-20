@@ -93,6 +93,20 @@ export class SocialController {
     return this.socialService.findFriends(query, customerId);
   }
 
+  @Get('following')
+  @ApiOperation({ summary: '分页查询当前用户关注列表（移动端）' })
+  @ApiOkResponse({ description: '查询成功' })
+  findFollowing(@Query() query: PaginationQueryDto, @CurrentMobileCustomer() customerId: string) {
+    return this.socialService.findFollowing(query, customerId);
+  }
+
+  @Get('followers')
+  @ApiOperation({ summary: '分页查询当前用户粉丝列表（移动端）' })
+  @ApiOkResponse({ description: '查询成功' })
+  findFollowers(@Query() query: PaginationQueryDto, @CurrentMobileCustomer() customerId: string) {
+    return this.socialService.findFollowers(query, customerId);
+  }
+
   @Put('follows')
   @ApiOperation({ summary: '关注指定用户（移动端）' })
   @ApiOkResponse({ description: '关注成功' })

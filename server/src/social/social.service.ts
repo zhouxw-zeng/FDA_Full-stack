@@ -97,6 +97,14 @@ export class SocialService {
     );
   }
 
+  async findFollowing(query: PaginationQueryDto, currentCustomerId: string) {
+    return this.findFollowList(query, currentCustomerId, 'following');
+  }
+
+  async findFollowers(query: PaginationQueryDto, currentCustomerId: string) {
+    return this.findFollowList(query, currentCustomerId, 'followers');
+  }
+
   async findUser(userId: string, currentCustomerId: string) {
     const customer = await this.getCustomerOrThrow(userId);
     const [user] = await this.toUserResponses([customer], currentCustomerId);
@@ -502,6 +510,49 @@ export class SocialService {
         canLeaveMessage,
       };
     });
+  }
+
+  private async findFollowList(
+    query: PaginationQueryDto,
+    currentCustomerId: string,
+    mode: 'following' | 'followers',
+  ) {
+    const { page, size, skip } = resolvePagination(query);
+    const relationColumn = mode === 'following' ? 'follow.following_id' : 'follow.follower_id';
+    const ownerColumn = mode === 'following' ? 'follow.follower_id' : 'follow.following_id';
+    const buildQuery = () =>
+      this.followsRepository
+        .createQueryBuilder('follow')
+        .innerJoin(
+          CustomerUser,
+          'customer',
+          `customer.id = ${relationColumn} AND customer.audit_status = :auditStatus AND customer.enabled = :enabled`,
+          { auditStatus: 'approved', enabled: 1 },
+        )
+        .where(`${ownerColumn} = :currentCustomerId`, { currentCustomerId });
+
+    const total = await buildQuery().getCount();
+    const rows = await buildQuery()
+      .select(relationColumn, 'userId')
+      .orderBy('follow.created_at', 'DESC')
+      .addOrderBy('follow.id', 'DESC')
+      .skip(skip)
+      .take(size)
+      .getRawMany<{ userId: string }>();
+    const userIds = rows.map((row) => row.userId);
+    const customers = userIds.length
+      ? await this.customersRepository.findBy({ id: In(userIds) })
+      : [];
+    const customerMap = new Map(customers.map((customer) => [customer.id, customer]));
+    const list = await this.toUserResponses(customers, currentCustomerId);
+    const orderedList = userIds.flatMap((userId) => {
+      const customer = customerMap.get(userId);
+      return customer
+        ? [list.find((item) => item.id === customer.id) ?? this.toCustomerCard(customer)]
+        : [];
+    });
+
+    return createPaginationResult(orderedList, total, page, size);
   }
 
   private toCustomerCard(customer: CustomerUser) {

@@ -31,6 +31,20 @@ export function fetchSocialFriends(page = 1, size = 15): Promise<PageResult<Soci
   });
 }
 
+export function fetchMyFollowing(page = 1, size = 15): Promise<PageResult<SocialUser>> {
+  return http.get<PageResult<SocialUser>>('/social/following', {
+    page,
+    size,
+  });
+}
+
+export function fetchMyFollowers(page = 1, size = 15): Promise<PageResult<SocialUser>> {
+  return http.get<PageResult<SocialUser>>('/social/followers', {
+    page,
+    size,
+  });
+}
+
 export function fetchSocialUser(userId: string): Promise<SocialUserDetail> {
   return http.get<SocialUserDetail>(`/social/users/${userId}`);
 }
