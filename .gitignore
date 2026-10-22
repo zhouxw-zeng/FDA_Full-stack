@@ -2,6 +2,7 @@ node_modules
 .pnpm-store
 dist
 dist-ssr
+.next
 coverage
 .smoke
 *.local
@@ -18,4 +19,9 @@ Thumbs.db
 server/.env
 server/.env.*
 !server/.env.example
+
+# 官网截图由 Playwright 在验收阶段生成，属于可重建的本地产物
+web/.screenshots
+web/public/images/candidate-*.jpg
+showcase/public/images/candidate-*.jpg
 

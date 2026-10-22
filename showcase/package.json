@@ -1,0 +1,25 @@
+{
+  "name": "fde-study-showcase",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "家庭动态小助手 Vue 3 + Vite 4 产品演示",
+  "scripts": {
+    "dev": "vite --port 5175",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview --port 5175",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "vue": "3.4.38"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "4.6.2",
+    "typescript": "5.7.3",
+    "vite": "4.5.14",
+    "vue-tsc": "2.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
